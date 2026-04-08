@@ -1,5 +1,5 @@
 import type { User, WhatsAppMessage } from '../types/index.js';
-import { sendText, sendButtons } from '../services/whatsapp.js';
+import { sendText, sendList } from '../services/whatsapp.js';
 import { updateUser, setConversationState, clearConversationState } from '../db/supabase.js';
 import { searchByCommand } from '../services/eventSearch.js';
 import { formatEventList } from '../utils/formatter.js';
@@ -12,37 +12,25 @@ export async function handleOnboarding(user: User, message: WhatsAppMessage): Pr
   // Set conversation state
   await setConversationState(user.id, 'onboarding_interests', { selectedInterests: [] });
 
-  const welcome = `👋 Hey${user.name ? ` ${user.name}` : ''}! I'm *EventX* — your IIT Delhi event discovery bot.
+  const welcome = `Hey${user.name ? ` ${user.name}` : ''}! I'm Saturn, your IIT Delhi event discovery assistant.\n\nI keep track of all club events happening on campus. You don't need to learn any commands—just ask me what you're looking for! For example: "any tech talks today?" or "show me weekend sports events."\n\nFirst, let me know what you're generally into:`;
 
-I keep track of all club events happening on campus. Ask me things like "what's happening tonight?" or "any tech events this week?"
+  // Send single list message
+  const rows = categoriesConfig.categories.slice(0, 9).map(c => ({
+    id: `interest_${c.slug}`,
+    title: c.label.substring(0, 24),
+  }));
+  
+  // Add done option to the same list section
+  rows.push({
+    id: 'onboarding_done',
+    title: 'Done / Skip',
+  });
 
-First, let me know what you're into so I can personalize your experience!`;
-
-  await sendText(user.phone, welcome);
-
-  // Send interest options in batches (WhatsApp max 3 buttons per message)
-  const cats = categoriesConfig.categories;
-
-  for (let i = 0; i < cats.length; i += 3) {
-    const batch = cats.slice(i, i + 3);
-    await sendButtons(
-      user.phone,
-      i === 0 ? 'Tap the categories that interest you:' : 'More categories:',
-      batch.map(c => ({
-        type: 'reply' as const,
-        reply: {
-          id: `interest_${c.slug}`,
-          title: `${c.emoji} ${c.label}`.substring(0, 20),
-        },
-      }))
-    );
-  }
-
-  // Send "Done" button
-  await sendButtons(
+  await sendList(
     user.phone,
-    "Tap Done when you've selected your interests, or just send any message to skip!",
-    [{ type: 'reply' as const, reply: { id: 'onboarding_done', title: '✅ Done' } }]
+    welcome,
+    'Select Interests',
+    [{ title: 'Categories', rows }]
   );
 }
 
@@ -50,7 +38,7 @@ First, let me know what you're into so I can personalize your experience!`;
  * Handle interest selection during onboarding.
  */
 export async function handleOnboardingReply(user: User, message: WhatsAppMessage): Promise<void> {
-  const replyId = message.interactive?.button_reply?.id || '';
+  const replyId = message.interactive?.list_reply?.id || message.interactive?.button_reply?.id || '';
 
   if (replyId === 'onboarding_done' || !replyId.startsWith('interest_')) {
     // Finish onboarding
@@ -68,7 +56,25 @@ export async function handleOnboardingReply(user: User, message: WhatsAppMessage
     user.interests = currentInterests;
 
     const cat = categoriesConfig.categories.find(c => c.slug === category);
-    await sendText(user.phone, `${cat?.emoji || '✅'} Added *${cat?.label || category}*! Tap more or hit Done.`);
+    
+    await sendList(
+      user.phone,
+      `Added ${cat?.label || category}. Select more, or tap Done.`,
+      'Options',
+      [{
+        title: 'Actions',
+        rows: [
+          { id: 'onboarding_done', title: 'Done / Finish' },
+          ...categoriesConfig.categories.slice(0, 9).map(c => ({
+            id: `interest_${c.slug}`,
+            title: c.label.substring(0, 24),
+          }))
+        ]
+      }]
+    );
+  } else {
+    // already selected
+    await sendList(user.phone, `You already selected ${category}. Tap Done to finish.`, 'Options', [{ title: 'Actions', rows: [{ id: 'onboarding_done', title: 'Done / Finish' }] }]);
   }
 }
 
@@ -80,13 +86,13 @@ async function finishOnboarding(user: User): Promise<void> {
   await clearConversationState(user.id);
 
   const interests = user.interests || [];
-  let greeting = '🎉 You\'re all set!';
+  let greeting = 'You\'re all set!';
 
   if (interests.length > 0) {
     const labels = interests
       .map(slug => categoriesConfig.categories.find(c => c.slug === slug)?.label || slug)
       .join(', ');
-    greeting += ` I'll keep an eye on: *${labels}*`;
+    greeting += ` I'll keep an eye on: ${labels}`;
   }
 
   greeting += '\n\nHere\'s what\'s happening soon:';
@@ -100,6 +106,7 @@ async function finishOnboarding(user: User): Promise<void> {
   if (events.length > 0) {
     await sendText(user.phone, formatEventList(events, 'This Week'));
   } else {
-    await sendText(user.phone, 'No events matching your interests this week. I\'ll notify you when new ones are posted!\n\nType /help to see all commands.');
+    await sendText(user.phone, 'No events matching your interests this week. I\'ll notify you when new ones are posted!\n\nJust message me anytime if you want to search.');
   }
 }
+

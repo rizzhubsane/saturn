@@ -32,8 +32,8 @@ export async function complete(
       headers: {
         'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://eventx.iitd.dev',
-        'X-Title': 'EventX IITD',
+        'HTTP-Referer': 'https://saturn.iitd.dev',
+        'X-Title': 'Saturn IITD',
       },
       timeout: 30000,
     }
@@ -110,8 +110,8 @@ export async function completeWithImage(
       headers: {
         'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://eventx.iitd.dev',
-        'X-Title': 'EventX IITD',
+        'HTTP-Referer': 'https://saturn.iitd.dev',
+        'X-Title': 'Saturn IITD',
       },
       timeout: 60000, // Longer timeout for image processing
     }

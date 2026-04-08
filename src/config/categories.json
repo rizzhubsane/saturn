@@ -1,14 +1,14 @@
 {
   "categories": [
-    { "slug": "tech", "label": "Tech & Coding", "emoji": "💻" },
-    { "slug": "cultural", "label": "Cultural", "emoji": "🎭" },
-    { "slug": "sports", "label": "Sports & Fitness", "emoji": "⚽" },
-    { "slug": "career", "label": "Career & Placement", "emoji": "💼" },
-    { "slug": "startup", "label": "Startup & Business", "emoji": "🚀" },
-    { "slug": "academic", "label": "Academic & Research", "emoji": "📚" },
-    { "slug": "social", "label": "Social & Chill", "emoji": "🎉" },
-    { "slug": "workshop", "label": "Workshops & Hands-on", "emoji": "🔧" },
-    { "slug": "talk", "label": "Talks & Lectures", "emoji": "🎤" },
-    { "slug": "competition", "label": "Competitions", "emoji": "🏆" }
+    { "slug": "tech", "label": "Tech & Coding" },
+    { "slug": "cultural", "label": "Cultural" },
+    { "slug": "sports", "label": "Sports & Fitness" },
+    { "slug": "career", "label": "Career & Placement" },
+    { "slug": "startup", "label": "Startup & Business" },
+    { "slug": "academic", "label": "Academic & Research" },
+    { "slug": "social", "label": "Social & Chill" },
+    { "slug": "workshop", "label": "Workshops & Hands-on" },
+    { "slug": "talk", "label": "Talks & Lectures" },
+    { "slug": "competition", "label": "Competitions" }
   ]
 }

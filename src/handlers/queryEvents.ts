@@ -49,7 +49,7 @@ export async function handleQueryEvents(
       case 'category': {
         events = await searchByCategory(param || '');
         const cat = categoryMap.get(param || '');
-        title = cat ? `${cat.emoji} ${cat.label} Events` : `${param} Events`;
+        title = cat ? `${cat.label} Events` : `${param} Events`;
         break;
       }
       case 'myevents': {
@@ -77,8 +77,8 @@ export async function handleQueryEvents(
 
     if (events.length === 0) {
       const noResultMsg = queryType === 'natural'
-        ? `No events found for "${param}" 😕\n\nTry:\n• /today — today's events\n• /week — this week\n• /clubs — browse clubs`
-        : `No events found 😕\n\nTry /week for this week's events or /help for more options.`;
+        ? `No events found for "${param}".\n\nTry:\n- "today's events"\n- "this week"\n- "browse clubs"`
+        : `No events found.\n\nAsk me for this week's events or check clubs.`;
 
       await sendText(user.phone, noResultMsg);
       return;
@@ -95,8 +95,8 @@ export async function handleQueryEvents(
 
       // Action buttons
       await sendButtons(user.phone, 'What would you like to do?', [
-        { type: 'reply', reply: { id: `save_${events[0].id}`, title: '💾 Save' } },
-        { type: 'reply', reply: { id: `remind_${events[0].id}`, title: '🔔 Remind' } },
+        { type: 'reply', reply: { id: `save_${events[0].id}`, title: 'Save' } },
+        { type: 'reply', reply: { id: `remind_${events[0].id}`, title: 'Remind' } },
       ]);
       return;
     }
@@ -107,17 +107,17 @@ export async function handleQueryEvents(
     // If 3 or fewer, also send action buttons for each
     if (events.length <= 3) {
       for (const event of events) {
-        await sendButtons(user.phone, `🎯 *${event.title}*`, [
-          { type: 'reply', reply: { id: `view_${event.id}`, title: '👁️ Details' } },
-          { type: 'reply', reply: { id: `save_${event.id}`, title: '💾 Save' } },
-          { type: 'reply', reply: { id: `remind_${event.id}`, title: '🔔 Remind' } },
+        await sendButtons(user.phone, `*[${event.title}]*`, [
+          { type: 'reply', reply: { id: `view_${event.id}`, title: 'Details' } },
+          { type: 'reply', reply: { id: `save_${event.id}`, title: 'Save' } },
+          { type: 'reply', reply: { id: `remind_${event.id}`, title: 'Remind' } },
         ]);
       }
     }
 
   } catch (error: any) {
-    console.error('❌ Query failed:', error.message);
-    await sendText(user.phone, '😅 Something went wrong with that search. Try a simpler query or use /today.');
+    console.error('Query failed:', error.message);
+    await sendText(user.phone, 'Something went wrong. Try a simpler query or ask for today\'s events.');
   }
 }
 
@@ -129,7 +129,7 @@ export async function handleEventDetail(user: User, eventId: string): Promise<vo
     const event = await getEventById(eventId);
 
     if (!event) {
-      await sendText(user.phone, '❌ Event not found.');
+      await sendText(user.phone, 'Event not found.');
       return;
     }
 
@@ -141,8 +141,8 @@ export async function handleEventDetail(user: User, eventId: string): Promise<vo
     }
 
     await sendButtons(user.phone, 'What would you like to do?', [
-      { type: 'reply', reply: { id: `save_${event.id}`, title: '💾 Save' } },
-      { type: 'reply', reply: { id: `remind_${event.id}`, title: '🔔 Remind' } },
+      { type: 'reply', reply: { id: `save_${event.id}`, title: 'Save' } },
+      { type: 'reply', reply: { id: `remind_${event.id}`, title: 'Remind' } },
     ]);
 
   } catch (error: any) {

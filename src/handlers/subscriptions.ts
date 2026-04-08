@@ -13,8 +13,8 @@ export async function handleSubscribe(user: User, category: string): Promise<voi
   const slug = category.toLowerCase().trim();
 
   if (!validCategories.has(slug)) {
-    const available = categoriesConfig.categories.map(c => `  ${c.emoji} ${c.slug} — ${c.label}`).join('\n');
-    await sendText(user.phone, `❌ Unknown category "${category}".\n\nAvailable categories:\n${available}`);
+    const available = categoriesConfig.categories.map(c => `  - ${c.slug} — ${c.label}`).join('\n');
+    await sendText(user.phone, `Unknown category "${category}".\n\nAvailable categories:\n${available}`);
     return;
   }
 
@@ -22,13 +22,13 @@ export async function handleSubscribe(user: User, category: string): Promise<voi
     await addSubscription(user.id, slug);
     const cat = categoryMap.get(slug)!;
     await sendText(user.phone,
-      `${cat.emoji} Subscribed to *${cat.label}*!\n\n` +
+      `Subscribed to [${cat.label}]!\n\n` +
       `You'll get notified when new ${cat.label.toLowerCase()} events are posted.\n\n` +
       `Manage: /mysubs · Unsubscribe: /unsubscribe ${slug}`
     );
   } catch (error: any) {
-    console.error('❌ Subscribe error:', error.message);
-    await sendText(user.phone, '❌ Couldn\'t subscribe. Please try again.');
+    console.error('Subscribe error:', error.message);
+    await sendText(user.phone, 'Couldn\'t subscribe. Please try again.');
   }
 }
 
@@ -41,10 +41,10 @@ export async function handleUnsubscribe(user: User, category: string): Promise<v
   try {
     await removeSubscription(user.id, slug);
     const cat = categoryMap.get(slug);
-    await sendText(user.phone, `✅ Unsubscribed from ${cat?.emoji || ''} *${cat?.label || category}*.`);
+    await sendText(user.phone, `Unsubscribed from [${cat?.label || category}].`);
   } catch (error: any) {
-    console.error('❌ Unsubscribe error:', error.message);
-    await sendText(user.phone, '❌ Couldn\'t unsubscribe. Please try again.');
+    console.error('Unsubscribe error:', error.message);
+    await sendText(user.phone, 'Couldn\'t unsubscribe. Please try again.');
   }
 }
 
@@ -57,7 +57,7 @@ export async function handleMySubscriptions(user: User): Promise<void> {
 
     if (subs.length === 0) {
       await sendText(user.phone,
-        '📢 No active subscriptions.\n\n' +
+        'No active subscriptions.\n\n' +
         'Subscribe to a category to get notified about new events:\n' +
         '`/subscribe tech`\n' +
         '`/subscribe cultural`\n' +
@@ -66,17 +66,17 @@ export async function handleMySubscriptions(user: User): Promise<void> {
       return;
     }
 
-    const lines = ['📢 *Your Subscriptions*\n'];
+    const lines = ['*[Your Subscriptions]*\n'];
     for (const slug of subs) {
       const cat = categoryMap.get(slug);
-      lines.push(`  ${cat?.emoji || '📌'} ${cat?.label || slug}`);
+      lines.push(`  - ${cat?.label || slug}`);
     }
     lines.push('\nTo unsubscribe: `/unsubscribe <category>`');
 
     await sendText(user.phone, lines.join('\n'));
 
   } catch (error: any) {
-    console.error('❌ Subscriptions error:', error.message);
-    await sendText(user.phone, '❌ Couldn\'t load subscriptions. Please try again.');
+    console.error('Subscriptions error:', error.message);
+    await sendText(user.phone, 'Couldn\'t load subscriptions. Please try again.');
   }
 }

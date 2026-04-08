@@ -18,7 +18,7 @@ app.use(express.json({
 app.get('/health', (_req, res) => {
   res.status(200).json({ 
     status: 'ok', 
-    service: 'EventX IITD',
+    service: 'Saturn IITD',
     timestamp: new Date().toISOString(),
     env: NODE_ENV,
   });
@@ -32,7 +32,7 @@ app.post('/webhook', validateSignature, handleWebhook);
 app.listen(PORT, () => {
   console.log(`
 ╔══════════════════════════════════════╗
-║   🎯 EventX — IIT Delhi Events Bot   ║
+║   🎯 Saturn — IIT Delhi Events Bot   ║
 ║   Running on port ${PORT}              ║
 ║   Environment: ${NODE_ENV}             ║
 ╚══════════════════════════════════════╝

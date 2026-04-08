@@ -4,62 +4,92 @@ import { saveEvent, unsaveEvent, getSavedEvents } from '../db/supabase.js';
 import { formatEventList } from '../utils/formatter.js';
 
 /**
- * Handle /save <event_id> or save button tap.
+ * Handle /save <event_id_or_title> or save button tap.
  */
-export async function handleSaveEvent(user: User, eventIdPrefix: string): Promise<void> {
+export async function handleSaveEvent(user: User, eventParam: string): Promise<void> {
   try {
-    // Find event by ID prefix
     const { supabase } = await import('../db/supabase.js');
-    const { data: event } = await supabase
-      .from('events')
-      .select('id, title')
-      .like('id', `${eventIdPrefix}%`)
-      .eq('status', 'confirmed')
-      .limit(1)
-      .single();
+    let event;
+
+    // Check if it's a UUID (from interactive button)
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventParam);
+
+    if (isUUID) {
+      const { data } = await supabase
+        .from('events')
+        .select('id, title')
+        .eq('id', eventParam)
+        .eq('status', 'confirmed')
+        .single();
+      event = data;
+    } else {
+      // Fallback search by title if user manually typed /save Name
+      const { data } = await supabase
+        .from('events')
+        .select('id, title')
+        .ilike('title', `%${eventParam}%`)
+        .eq('status', 'confirmed')
+        .limit(1)
+        .single();
+      event = data;
+    }
 
     if (!event) {
-      await sendText(user.phone, '❌ Event not found.');
+      await sendText(user.phone, 'Event not found. Make sure you tapped the Save button on a valid event.');
       return;
     }
 
     await saveEvent(user.id, event.id);
-    await sendText(user.phone, `💾 Saved *${event.title}*!\n\nView your saved events anytime with /saved`);
+    await sendText(user.phone, `Saved [${event.title}]!\nView your saved events anytime with /saved`);
 
   } catch (error: any) {
     if (error.message.includes('duplicate') || error.message.includes('unique')) {
-      await sendText(user.phone, '✅ Event already saved!');
+      await sendText(user.phone, 'Event already saved!');
     } else {
-      console.error('❌ Save error:', error.message);
-      await sendText(user.phone, '❌ Couldn\'t save the event. Please try again.');
+      console.error('Save error:', error.message);
+      await sendText(user.phone, 'Couldn\'t save the event. Please try again.');
     }
   }
 }
 
 /**
- * Handle /unsave <event_id>.
+ * Handle /unsave <event_id_or_title>.
  */
-export async function handleUnsaveEvent(user: User, eventIdPrefix: string): Promise<void> {
+export async function handleUnsaveEvent(user: User, eventParam: string): Promise<void> {
   try {
     const { supabase } = await import('../db/supabase.js');
-    const { data: event } = await supabase
-      .from('events')
-      .select('id, title')
-      .like('id', `${eventIdPrefix}%`)
-      .limit(1)
-      .single();
+    let event;
+
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventParam);
+
+    if (isUUID) {
+      const { data } = await supabase
+        .from('events')
+        .select('id, title')
+        .eq('id', eventParam)
+        .single();
+      event = data;
+    } else {
+      const { data } = await supabase
+        .from('events')
+        .select('id, title')
+        .ilike('title', `%${eventParam}%`)
+        .limit(1)
+        .single();
+      event = data;
+    }
 
     if (!event) {
-      await sendText(user.phone, '❌ Event not found.');
+      await sendText(user.phone, 'Event not found.');
       return;
     }
 
     await unsaveEvent(user.id, event.id);
-    await sendText(user.phone, `🗑️ Removed *${event.title}* from saved events.`);
+    await sendText(user.phone, `Removed [${event.title}] from saved events.`);
 
   } catch (error: any) {
-    console.error('❌ Unsave error:', error.message);
-    await sendText(user.phone, '❌ Couldn\'t unsave the event. Please try again.');
+    console.error('Unsave error:', error.message);
+    await sendText(user.phone, 'Couldn\'t unsave the event. Please try again.');
   }
 }
 

@@ -150,9 +150,9 @@ async function handleStats(user: User): Promise<void> {
     const stats = await getSystemStats();
 
     await sendText(user.phone,
-      `📊 *EventX System Stats*\n\n` +
-      `👥 Users: ${stats.totalUsers}\n` +
-      `🏛️ Clubs: ${stats.totalClubs}\n` +
+      `*[Saturn System Stats]*\n\n` +
+      `Users: ${stats.totalUsers}\n` +
+      `Clubs: ${stats.totalClubs}\n` +
       `📅 Total Events: ${stats.totalEvents}\n` +
       `✅ Active Events: ${stats.activeEvents}\n` +
       `👀 Total Views: ${stats.totalViews}\n` +
