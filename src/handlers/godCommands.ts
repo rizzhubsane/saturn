@@ -149,14 +149,21 @@ async function handleStats(user: User): Promise<void> {
   try {
     const stats = await getSystemStats();
 
+    const conversionRate = stats.totalViews > 0 
+      ? Math.round(((stats.totalSaves + stats.totalReminders) / stats.totalViews) * 100) 
+      : 0;
+
     await sendText(user.phone,
-      `*[Saturn System Stats]*\n\n` +
-      `Users: ${stats.totalUsers}\n` +
-      `Clubs: ${stats.totalClubs}\n` +
-      `📅 Total Events: ${stats.totalEvents}\n` +
-      `✅ Active Events: ${stats.activeEvents}\n` +
-      `👀 Total Views: ${stats.totalViews}\n` +
-      `🔔 Total Reminders: ${stats.totalReminders}`
+      `📊 *Saturn Global Health* 📊\n\n` +
+      `*Ecosystem*\n` +
+      `👥 Users: ${stats.totalUsers}\n` +
+      `🏛️ Clubs: ${stats.totalClubs}\n` +
+      `📅 Events: ${stats.totalEvents} (Active: ${stats.activeEvents})\n\n` +
+      `*Engagement Funnel*\n` +
+      `👀 Total Reach: ${stats.totalViews} views\n` +
+      `🔖 Bookmarks (Saves): ${stats.totalSaves}\n` +
+      `🔔 Active RSVPs (Reminders): ${stats.totalReminders}\n\n` +
+      `🚀 *Conv. Rate:* ~${conversionRate}% (Views to Bookmarks/RSVPs)`
     );
 
   } catch (error: any) {

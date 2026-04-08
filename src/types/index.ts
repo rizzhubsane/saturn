@@ -200,6 +200,8 @@ export interface ClubWithStats extends Club {
   total_events: number;
   upcoming_events: number;
   total_views: number;
+  total_saves: number;
+  total_reminders: number;
   power_user_count: number;
 }
 

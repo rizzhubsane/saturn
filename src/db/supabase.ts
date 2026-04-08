@@ -146,13 +146,32 @@ export async function getClubWithStats(clubId: string): Promise<ClubWithStats | 
     .eq('club_id', clubId);
   
   let totalViews = 0;
+  let totalSaves = 0;
+  let totalReminders = 0;
+
   if (eventIds && eventIds.length > 0) {
     const ids = eventIds.map(e => e.id);
-    const { count } = await supabase
+    
+    // Total Views
+    const { count: viewsCount } = await supabase
       .from('event_views')
       .select('*', { count: 'exact', head: true })
       .in('event_id', ids);
-    totalViews = count || 0;
+    totalViews = viewsCount || 0;
+
+    // Total Saves (Bookmarks)
+    const { count: savesCount } = await supabase
+      .from('saved_events')
+      .select('*', { count: 'exact', head: true })
+      .in('event_id', ids);
+    totalSaves = savesCount || 0;
+
+    // Total Reminders (RSVPs)
+    const { count: remindersCount } = await supabase
+      .from('reminders')
+      .select('*', { count: 'exact', head: true })
+      .in('event_id', ids);
+    totalReminders = remindersCount || 0;
   }
 
   // Power user count
@@ -167,6 +186,8 @@ export async function getClubWithStats(clubId: string): Promise<ClubWithStats | 
     total_events: totalEvents || 0,
     upcoming_events: upcomingEvents || 0,
     total_views: totalViews,
+    total_saves: totalSaves,
+    total_reminders: totalReminders,
     power_user_count: powerUserCount || 0,
   };
 }
@@ -503,14 +524,16 @@ export async function getSystemStats(): Promise<{
   activeEvents: number;
   totalViews: number;
   totalReminders: number;
+  totalSaves: number;
 }> {
-  const [users, clubs, events, activeEvents, views, reminders] = await Promise.all([
+  const [users, clubs, events, activeEvents, views, reminders, saves] = await Promise.all([
     supabase.from('users').select('*', { count: 'exact', head: true }),
     supabase.from('clubs').select('*', { count: 'exact', head: true }).eq('status', 'active'),
     supabase.from('events').select('*', { count: 'exact', head: true }),
     supabase.from('events').select('*', { count: 'exact', head: true }).eq('status', 'confirmed'),
     supabase.from('event_views').select('*', { count: 'exact', head: true }),
     supabase.from('reminders').select('*', { count: 'exact', head: true }),
+    supabase.from('saved_events').select('*', { count: 'exact', head: true }),
   ]);
 
   return {
@@ -520,6 +543,7 @@ export async function getSystemStats(): Promise<{
     activeEvents: activeEvents.count || 0,
     totalViews: views.count || 0,
     totalReminders: reminders.count || 0,
+    totalSaves: saves.count || 0,
   };
 }
 

@@ -147,8 +147,20 @@ export function formatClubProfile(club: ClubWithStats): string {
     lines.push('');
   }
 
-  lines.push(`${club.total_events} events posted · ${club.upcoming_events} upcoming`);
-  lines.push(`${club.total_views} total views · ${club.power_user_count} team members`);
+  // --- Analytics Dashboard ---
+  lines.push('📊 *Engagement Dashboard* 📊');
+  
+  if (club.total_events > 0) {
+    const avgViews = Math.round(club.total_views / club.total_events);
+    lines.push(`· Total Reach: ${club.total_views} views`);
+    lines.push(`· Average Rate: ~${avgViews} views/event`);
+    lines.push(`· Active Intent: ${club.total_saves} Bookmarks | ${club.total_reminders} RSVPs`);
+  } else {
+    lines.push('· No events posted yet.');
+  }
+
+  lines.push(`\n📈 *Status*: ${club.total_events} historic events | ${club.upcoming_events} upcoming`);
+  lines.push(`👨‍💻 *Team*: ${club.power_user_count} admins`);
 
   if (club.founded_year) {
     lines.push(`Founded: ${club.founded_year}`);
