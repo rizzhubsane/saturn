@@ -265,6 +265,10 @@ async function handleInteractiveReply(user: User, message: WhatsAppMessage): Pro
     const eventId = replyId.replace('remind_', '');
     return await handleReminder(user, eventId);
   }
+  if (replyId.startsWith('pass_')) {
+    const { sendText } = await import('../services/whatsapp.js');
+    return await sendText(user.phone, "Got it! I won't bother you about this one. Ask me if you want to see anything else.");
+  }
   if (replyId.startsWith('save_')) {
     const eventId = replyId.replace('save_', '');
     return await handleSaveEvent(user, eventId);

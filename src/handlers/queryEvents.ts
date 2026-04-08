@@ -107,6 +107,7 @@ export async function handleQueryEvents(
       // Action buttons
       await sendButtons(user.phone, 'What would you like to do?', [
         { type: 'reply', reply: { id: `remind_${events[0].id}`, title: '🎟️ RSVP / Remind' } },
+        { type: 'reply', reply: { id: `pass_${events[0].id}`, title: '👎 Not Interested' } },
       ]);
       return;
     }
@@ -147,6 +148,7 @@ export async function handleEventDetail(user: User, eventId: string): Promise<vo
 
     await sendButtons(user.phone, 'What would you like to do?', [
       { type: 'reply', reply: { id: `remind_${event.id}`, title: '🎟️ RSVP / Remind' } },
+      { type: 'reply', reply: { id: `pass_${event.id}`, title: '👎 Not Interested' } },
     ]);
 
   } catch (error: any) {
