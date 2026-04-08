@@ -23,7 +23,7 @@ export const WHATSAPP_COMMUNITY_GROUP_ID = optional('WHATSAPP_COMMUNITY_GROUP_ID
 
 // ── OpenRouter (Gemini 2.5 Flash) ──
 export const OPENROUTER_API_KEY = required('OPENROUTER_API_KEY');
-export const OPENROUTER_MODEL = optional('OPENROUTER_MODEL', 'google/gemini-2.5-flash');
+export const OPENROUTER_MODEL = optional('OPENROUTER_MODEL', 'google/gemini-3-flash-preview');
 
 // ── Supabase ──
 export const SUPABASE_URL = required('SUPABASE_URL');

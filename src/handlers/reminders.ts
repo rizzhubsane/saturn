@@ -59,7 +59,7 @@ export async function handleReminder(user: User, eventIdPrefix: string): Promise
       url.searchParams.append('text', event.title);
       url.searchParams.append('dates', `${startDate}/${endDate}`);
       
-      if (event.description) url.searchParams.append('details', event.description.substring(0, 500));
+      // Removed event.description 'details' param because it causes massive URLs in WhatsApp
       if (event.venue) url.searchParams.append('location', event.venue);
 
       return url.toString();
@@ -67,8 +67,13 @@ export async function handleReminder(user: User, eventIdPrefix: string): Promise
 
     const gcalLink = generateGCalLink(event);
     const timeUntil = oneHourBefore > now ? '1 hour' : '15 minutes';
+    
+    // Automatically save the event as a bookmark as well
+    const { saveEvent } = await import('../db/supabase.js');
+    await saveEvent(user.id, event.id).catch(() => {});
+
     await sendText(user.phone,
-      `Reminder set!\n\n` +
+      `Reminder & Bookmark set!\n\n` +
       `I'll ping you ${timeUntil} before *[${event.title}]*.\n` +
       `Date: ${formatHumanDate(event.date)}${event.time ? ` · Time: ${formatHumanTime(event.time)}` : ''}\n` +
       `Location: ${event.venue || 'TBD'}\n\n` +
