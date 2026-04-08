@@ -1,13 +1,17 @@
 {
   "categories": [
     { "slug": "tech", "label": "Tech & Coding", "emoji": "💻" },
-    { "slug": "cultural", "label": "Cultural", "emoji": "🎭" },
+    { "slug": "cultural", "label": "Cultural & Performing Arts", "emoji": "🎭" },
     { "slug": "sports", "label": "Sports & Fitness", "emoji": "⚽" },
+    { "slug": "gaming", "label": "E-Sports & Gaming", "emoji": "🎮" },
     { "slug": "career", "label": "Career & Placement", "emoji": "💼" },
     { "slug": "startup", "label": "Startup & Business", "emoji": "🚀" },
     { "slug": "academic", "label": "Academic & Research", "emoji": "📚" },
+    { "slug": "design", "label": "Arts, Design & Media", "emoji": "🎨" },
+    { "slug": "literature", "label": "Literature & Debating", "emoji": "📝" },
     { "slug": "wellness", "label": "Wellness & Social Impact", "emoji": "❤️" },
     { "slug": "social", "label": "Social & Chill", "emoji": "🍕" },
+    { "slug": "food", "label": "Food & Festivals", "emoji": "🍔" },
     { "slug": "workshop", "label": "Workshops", "emoji": "🛠️" },
     { "slug": "talk", "label": "Talks & Lectures", "emoji": "🎤" },
     { "slug": "competition", "label": "Competitions", "emoji": "🏆" }
