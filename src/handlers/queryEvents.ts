@@ -17,8 +17,8 @@ export async function handleQueryEvents(
   param?: string
 ): Promise<void> {
   try {
-    let events;
-    let title: string;
+    let events: import('../types/index.js').Event[] = [];
+    let title: string = 'Search Results';
 
     switch (queryType) {
       case 'today': {
@@ -98,7 +98,7 @@ export async function handleQueryEvents(
 
     if (events.length === 0) {
       const noResultMsg = queryType === 'natural'
-        ? `Nothing currently matching "${param}".`
+        ? `Hmm, I couldn't find any events matching what you described right now.`
         : `No events found.`;
 
       await sendText(user.phone, noResultMsg);

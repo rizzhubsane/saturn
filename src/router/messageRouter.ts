@@ -237,8 +237,14 @@ async function handleInteractiveReply(user: User, message: WhatsAppMessage): Pro
 
   // Fallback notify buttons
   if (replyId === 'subscribe_prompt') {
-    const { sendText } = await import('../services/whatsapp.js');
-    await sendText(user.phone, "Awesome! Pick a category you want alerts for:\n\n💻 Tech & Coding: `/subscribe tech`\n🎭 Cultural: `/subscribe cultural`\n⚽ Sports: `/subscribe sports`\n🚀 Startup: `/subscribe startup`\n\nOr browse all with `/help`");
+    await sendText(user.phone, 
+      "Sure! Just tell me what you're into and I'll watch for events:\n\n" +
+      "For example:\n" +
+      "- \"Notify me about tech events\"\n" +
+      "- \"/subscribe sports\"\n" +
+      "- \"/subscribe cultural\"\n\n" +
+      "Or use /clubs to browse all campus clubs and follow ones you like!"
+    );
     return;
   }
   if (replyId === 'cancel_prompt') {

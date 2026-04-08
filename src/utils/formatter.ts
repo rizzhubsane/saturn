@@ -269,23 +269,35 @@ export function formatDigest(events: Event[], digestType: 'morning' | 'evening')
 export function formatHelp(role: string): string {
   const lines: string[] = [];
 
-  lines.push('*[Saturn]* — IIT Delhi Event Assistant\n');
-  lines.push('I can help you find events on campus. Just talk to me naturally!\n');
-
-  lines.push('Examples:');
-  lines.push('- "What\'s happening today?"');
-  lines.push('- "Are there any tech events this week?"');
-  lines.push('- "Show me my saved events"');
+  lines.push('*[Saturn]* — IIT Delhi Campus Assistant\n');
+  lines.push('I understand plain English — just ask me! For example:');
   lines.push('');
+  lines.push('💬 *Discovering Events*');
+  lines.push('- "What\'s happening today?"');
+  lines.push('- "Any tech talks this week?"');
+  lines.push('- "Show me weekend sports events"');
+  lines.push('- "Are there cultural events?"');
+  lines.push('');
+  lines.push('🏛️ *Discovering Clubs*');
+  lines.push('- "What clubs are there at IIT Delhi?"');
+  lines.push('- "Is there a coding club?"');
+  lines.push('- /clubs — browse all clubs');
+  lines.push('');
+  lines.push('🔖 *Your Activity*');
+  lines.push('- /saved — events you bookmarked');
+  lines.push('- /today, /tomorrow, /week — quick filters');
+  lines.push('');
+
   if (['power_user', 'admin', 'god'].includes(role)) {
-    lines.push('Power User Commands:');
-    lines.push('- /post (or forward a poster and write /post)');
-    lines.push('- /myevents');
-    lines.push('- /clubinfo');
+    lines.push('━━━━━━━━━━━━━━━');
+    lines.push('🛠️ *Club Team Commands*');
+    lines.push('- /post — publish an event (or forward a poster + /post)');
+    lines.push('- /myevents — your posted events');
+    lines.push('- /clubinfo — your club dashboard & analytics');
     lines.push('');
   }
   if (['admin', 'god'].includes(role)) {
-    lines.push('Admin Commands:');
+    lines.push('⚙️ *Admin Commands*');
     lines.push('- /adduser <phone>');
     lines.push('- /removeuser <phone>');
     lines.push('- /editclub');
@@ -293,7 +305,7 @@ export function formatHelp(role: string): string {
     lines.push('');
   }
   if (role === 'god') {
-    lines.push('God Mode:');
+    lines.push('👁️ *God Mode*');
     lines.push('- /addorg <name>');
     lines.push('- /promote <phone> admin <club>');
     lines.push('- /broadcast <msg>');
