@@ -14,23 +14,30 @@ export async function handleOnboarding(user: User, message: WhatsAppMessage): Pr
 
   const welcome = `Hey${user.name ? ` ${user.name}` : ''}! I'm Saturn, your IIT Delhi event discovery assistant.\n\nI keep track of all club events happening on campus. You don't need to learn any commands—just ask me what you're looking for! For example: "any tech talks today?" or "show me weekend sports events."\n\nFirst, let me know what you're generally into:`;
 
-  // Send single list message
-  const rows = categoriesConfig.categories.slice(0, 9).map(c => ({
-    id: `interest_${c.slug}`,
-    title: c.label.substring(0, 24),
-  }));
-  
-  // Add done option to the same list section
-  rows.push({
-    id: 'onboarding_done',
-    title: 'Done / Skip',
-  });
+  const half = Math.ceil(categoriesConfig.categories.length / 2);
+  const part1 = categoriesConfig.categories.slice(0, half);
+  const part2 = categoriesConfig.categories.slice(half);
+
+  const sections = [
+    {
+      title: 'Categories (Part 1)',
+      rows: part1.map(c => ({ id: `interest_${c.slug}`, title: c.label.substring(0, 24) }))
+    },
+    {
+      title: 'Categories (Part 2)',
+      rows: part2.map(c => ({ id: `interest_${c.slug}`, title: c.label.substring(0, 24) }))
+    },
+    {
+      title: 'Finish',
+      rows: [{ id: 'onboarding_done', title: 'Done / Skip' }]
+    }
+  ];
 
   await sendList(
     user.phone,
     welcome,
     'Select Interests',
-    [{ title: 'Categories', rows }]
+    sections
   );
 }
 
@@ -57,24 +64,31 @@ export async function handleOnboardingReply(user: User, message: WhatsAppMessage
 
     const cat = categoriesConfig.categories.find(c => c.slug === category);
     
+    const half = Math.ceil(categoriesConfig.categories.length / 2);
+    const sections = [
+      {
+        title: 'More Categories (1)',
+        rows: categoriesConfig.categories.slice(0, half).map(c => ({ id: `interest_${c.slug}`, title: c.label.substring(0, 24) }))
+      },
+      {
+        title: 'More Categories (2)',
+        rows: categoriesConfig.categories.slice(half).map(c => ({ id: `interest_${c.slug}`, title: c.label.substring(0, 24) }))
+      },
+      {
+        title: 'Finish',
+        rows: [{ id: 'onboarding_done', title: 'I\'m Done' }]
+      }
+    ];
+
     await sendList(
       user.phone,
       `Added ${cat?.label || category}. Select more, or tap Done.`,
       'Options',
-      [{
-        title: 'Actions',
-        rows: [
-          { id: 'onboarding_done', title: 'Done / Finish' },
-          ...categoriesConfig.categories.slice(0, 9).map(c => ({
-            id: `interest_${c.slug}`,
-            title: c.label.substring(0, 24),
-          }))
-        ]
-      }]
+      sections
     );
   } else {
     // already selected
-    await sendList(user.phone, `You already selected ${category}. Tap Done to finish.`, 'Options', [{ title: 'Actions', rows: [{ id: 'onboarding_done', title: 'Done / Finish' }] }]);
+    await sendList(user.phone, `You already selected ${category}. Tap Done to finish.`, 'Options', [{ title: 'Finish', rows: [{ id: 'onboarding_done', title: 'Done / Finish' }] }]);
   }
 }
 
@@ -95,8 +109,10 @@ async function finishOnboarding(user: User): Promise<void> {
     greeting += ` I'll keep an eye on: ${labels}`;
   }
 
-  greeting += '\n\nHere\'s what\'s happening soon:';
   await sendText(user.phone, greeting);
+
+  // Add a conversational pause
+  await new Promise(resolve => setTimeout(resolve, 800));
 
   // Show upcoming events
   const events = await searchByCommand('this_week', 
@@ -104,9 +120,9 @@ async function finishOnboarding(user: User): Promise<void> {
   );
 
   if (events.length > 0) {
-    await sendText(user.phone, formatEventList(events, 'This Week'));
+    await sendText(user.phone, formatEventList(events, 'Here\'s what\'s happening soon'));
   } else {
-    await sendText(user.phone, 'No events matching your interests this week. I\'ll notify you when new ones are posted!\n\nJust message me anytime if you want to search.');
+    await sendText(user.phone, 'There are no events matching your interests this week. I\'ll notify you when new ones are posted!\n\nJust message me anytime if you want to search.');
   }
 }
 

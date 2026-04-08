@@ -10,10 +10,15 @@ export async function handleHelp(user: User): Promise<void> {
   const helpText = formatHelp(user.role);
   
   try {
+    await sendText(user.phone, helpText);
+    
+    // Slight conversational delay
+    await new Promise(resolve => setTimeout(resolve, 800));
+
     const todayEvents = await searchByCommand('today');
     if (todayEvents.length > 0) {
       const topEventsStr = formatEventList(todayEvents.slice(0, 2), "🔥 Hot Today");
-      await sendText(user.phone, `${topEventsStr}\n\n━━━━━━━━━━━━━━━\n\n${helpText}`);
+      await sendText(user.phone, topEventsStr);
       
       // Since we just showed events, save context so they can reply '1' to view details
       const { setConversationState } = await import('../db/supabase.js');
@@ -25,6 +30,4 @@ export async function handleHelp(user: User): Promise<void> {
   } catch (err) {
     // silently fail
   }
-
-  await sendText(user.phone, helpText);
 }
