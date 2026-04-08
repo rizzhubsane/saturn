@@ -61,7 +61,7 @@ export async function routeMessage(user: User, message: WhatsAppMessage): Promis
     const textLower = text.toLowerCase();
 
     // Help & Greetings
-    if (['/help', '/menu', '/start', 'hi', 'hello', 'hey', 'sup'].includes(textLower)) {
+    if (['/help', '/menu', '/start'].includes(textLower)) {
       return await handleHelp(user);
     }
 
