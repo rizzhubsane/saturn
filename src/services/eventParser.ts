@@ -34,7 +34,9 @@ HINTS FOR CATEGORIES:
 - Blood donation, charity, welfare, mental health -> "wellness"
 - Stand-up comedy, movie nights, casual meetups -> "cultural" or "social"
 - Resume building, placement talks -> "career"
-- Hackathons -> "tech" and "competition"`;
+- Hackathons -> "tech" and "competition"
+- Hardware, core engineering, physics, aeromodelling, biology -> "engineering"
+- Case studies, quantitative finance, consulting workshops -> "finance"`;
 
 /**
  * Parse a raw club publicity message into structured event data.

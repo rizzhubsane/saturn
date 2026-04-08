@@ -22,7 +22,9 @@ Respond with ONLY a JSON object:
 }
 
 HINTS:
-- For queries involving "charity", "welfare", "blood donation", "community", or "mental health", ensure you map to the "wellness" category.`;
+- For queries involving "charity", "welfare", "blood donation", "community", or "mental health", ensure you map to the "wellness" category.
+- For queries involving "hardware", "motorsports", "biology", "physics", or "robotics", map to "engineering".
+- For queries like "consulting", "quant", "stock market", map to "finance".`;
 
 /**
  * Parse a natural language query using LLM, then search the database.

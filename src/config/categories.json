@@ -1,10 +1,12 @@
 {
   "categories": [
     { "slug": "tech", "label": "Tech & Coding", "emoji": "💻" },
+    { "slug": "engineering", "label": "Science & Engineering", "emoji": "⚙️" },
     { "slug": "cultural", "label": "Cultural & Performing Arts", "emoji": "🎭" },
     { "slug": "sports", "label": "Sports & Fitness", "emoji": "⚽" },
     { "slug": "gaming", "label": "E-Sports & Gaming", "emoji": "🎮" },
     { "slug": "career", "label": "Career & Placement", "emoji": "💼" },
+    { "slug": "finance", "label": "Finance & Economics", "emoji": "📈" },
     { "slug": "startup", "label": "Startup & Business", "emoji": "🚀" },
     { "slug": "academic", "label": "Academic & Research", "emoji": "📚" },
     { "slug": "design", "label": "Arts, Design & Media", "emoji": "🎨" },
