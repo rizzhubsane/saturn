@@ -15,21 +15,21 @@ export function formatEventCard(event: Event, club?: Club | null): string {
   const categoryTags = event.categories
     .map(slug => {
       const cat = categoryMap.get(slug);
-      return cat ? cat.label : `#${slug}`;
+      return cat ? `[${cat.emoji || ''} ${cat.label}]` : `#${slug}`;
     })
-    .join(' · ');
+    .join(' ');
 
   const lines: string[] = [];
 
   lines.push(`*[${event.title}]*`);
-  lines.push(`Date: ${formatHumanDate(event.date)}${event.time ? ` · Time: ${formatHumanTime(event.time)}` : ''}`);
+  lines.push(`📅 ${formatHumanDate(event.date)}${event.time ? ` · ⏰ ${formatHumanTime(event.time)}` : ''}`);
   
   if (event.venue) {
-    lines.push(`Location: ${event.venue_normalized || event.venue}`);
+    lines.push(`📍 ${event.venue_normalized || event.venue}`);
   }
 
   if (categoryTags) {
-    lines.push(`Tags: ${categoryTags}`);
+    lines.push(`🏷️ ${categoryTags}`);
   }
 
   lines.push('');
@@ -40,13 +40,13 @@ export function formatEventCard(event: Event, club?: Club | null): string {
   }
 
   if (event.registration_link) {
-    lines.push(`Register: ${event.registration_link}`);
+    lines.push(`🔗 Register: ${event.registration_link}`);
   }
 
   if (club) {
-    lines.push(`Organised by: ${club.name}`);
+    lines.push(`🏛️ Organised by: ${club.name}`);
   } else if ((event as any).club) {
-    lines.push(`Organised by: ${(event as any).club.name}`);
+    lines.push(`🏛️ Organised by: ${(event as any).club.name}`);
   }
 
   return lines.join('\n');
@@ -68,17 +68,20 @@ export function formatEventList(events: Event[], title: string): string {
     const clubName = (event as any).club?.name || '';
     const venue = event.venue_normalized || event.venue || '';
 
-    lines.push(`${i + 1}. *${event.title}*`);
-    lines.push(`   Date: ${formatHumanDate(event.date)} · Time: ${timeStr}${venue ? `\n   Location: ${venue}` : ''}`);
+    // We can use fun numbering if desired, but 1. is fine
+    lines.push(`${i + 1}. *[${event.title}]*`);
+    lines.push(`   📅 ${formatHumanDate(event.date)} · ⏰ ${timeStr}${venue ? `\n   📍 ${venue}` : ''}`);
     if (clubName) {
-      lines.push(`   By: ${clubName}`);
+      lines.push(`   🏛️ ${clubName}`);
     }
     lines.push('');
   });
 
   if (events.length > 10) {
-    lines.push(`... and ${events.length - 10} more. Ask me to search specifically.`);
+    lines.push(`... and ${events.length - 10} more. Ask me to search specifically.\n`);
   }
+
+  lines.push('💡 _Reply with the event number (e.g. 1) for details, or to RSVP/Remind!_');
 
   return lines.join('\n');
 }
