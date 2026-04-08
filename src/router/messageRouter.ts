@@ -28,7 +28,8 @@ const categorySlugSet = new Set(categoriesConfig.categories.map(c => c.slug));
 export async function routeMessage(user: User, message: WhatsAppMessage): Promise<void> {
   try {
     // Promote god phone
-    if (user.phone === GOD_PHONE && user.role !== 'god') {
+    const godPhones = GOD_PHONE.split(',').map(p => p.replace('+', '').trim());
+    if (godPhones.includes(user.phone.replace('+', '')) && user.role !== 'god') {
       // Auto-promote to god on first message
       const { updateUser } = await import('../db/supabase.js');
       await updateUser(user.id, { role: 'god' } as any);
