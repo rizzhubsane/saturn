@@ -57,11 +57,11 @@ export function formatEventCard(event: Event, club?: Club | null): string {
  */
 export function formatEventList(events: Event[], title: string): string {
   if (events.length === 0) {
-    return `*[${title}]*\n\nNo events found.`;
+    return `*${title}*\n\nNo events found.`;
   }
 
   const lines: string[] = [];
-  lines.push(`*[${title}]* — ${events.length} found\n`);
+  lines.push(`*${title}* — ${events.length} found\n`);
 
   events.slice(0, 10).forEach((event, i) => {
     const timeStr = event.time ? formatHumanTime(event.time) : 'TBD';
