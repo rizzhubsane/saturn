@@ -204,6 +204,23 @@ async function handleStatefulMessage(user: User, message: WhatsAppMessage, state
     case 'editing_club':
       return await handleEditClub(user, message);
 
+    case 'viewing_search_results': {
+      const textParam = message.text?.body?.trim() || '';
+      const num = parseInt(textParam);
+
+      // If user typed a number between 1 and the length of events list
+      if (!isNaN(num) && num > 0 && state.data?.events && num <= state.data.events.length) {
+        const eventId = state.data.events[num - 1];
+        const { handleEventDetail } = await import('../handlers/queryEvents.js');
+        return await handleEventDetail(user, eventId);
+      }
+
+      // If it's something else, clear state and route normally
+      const { clearConversationState } = await import('../db/supabase.js');
+      await clearConversationState(user.id);
+      return await routeMessage(user, message);
+    }
+
     default:
       // Unknown state — clear and re-route
       const { clearConversationState } = await import('../db/supabase.js');
@@ -217,6 +234,18 @@ async function handleStatefulMessage(user: User, message: WhatsAppMessage, state
  */
 async function handleInteractiveReply(user: User, message: WhatsAppMessage): Promise<void> {
   const replyId = message.interactive?.button_reply?.id || message.interactive?.list_reply?.id || '';
+
+  // Fallback notify buttons
+  if (replyId === 'subscribe_prompt') {
+    const { sendText } = await import('../services/whatsapp.js');
+    await sendText(user.phone, "Awesome! Pick a category you want alerts for:\n\n💻 Tech & Coding: `/subscribe tech`\n🎭 Cultural: `/subscribe cultural`\n⚽ Sports: `/subscribe sports`\n🚀 Startup: `/subscribe startup`\n\nOr browse all with `/help`");
+    return;
+  }
+  if (replyId === 'cancel_prompt') {
+    const { sendText } = await import('../services/whatsapp.js');
+    await sendText(user.phone, "No worries! Just ask when you're looking for something.");
+    return;
+  }
 
   // Parse the action from the reply ID prefix
   if (replyId.startsWith('confirm_evt_')) {

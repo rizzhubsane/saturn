@@ -210,4 +210,5 @@ export interface ClubWithStats extends Club {
 export interface CategoryConfig {
   slug: string;
   label: string;
+  emoji?: string;
 }

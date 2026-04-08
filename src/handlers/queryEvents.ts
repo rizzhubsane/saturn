@@ -61,7 +61,12 @@ export async function handleQueryEvents(
         // Natural language query via LLM
         const result = await searchEvents(param || '');
         events = result.events;
-        title = result.intent || 'Search Results';
+        // Make the title warm and conversational instead of printing the raw parser intent
+        title = result.intent?.length > 25 
+          ? "Here's what I found for you" 
+          : (result.intent || 'Search Results');
+        // Capitalize first letter
+        title = title.charAt(0).toUpperCase() + title.slice(1);
         break;
       }
       default: {
@@ -77,10 +82,16 @@ export async function handleQueryEvents(
 
     if (events.length === 0) {
       const noResultMsg = queryType === 'natural'
-        ? `No events found for "${param}".\n\nTry:\n- "today's events"\n- "this week"\n- "browse clubs"`
-        : `No events found.\n\nAsk me for this week's events or check clubs.`;
+        ? `Nothing currently matching "${param}".`
+        : `No events found.`;
 
       await sendText(user.phone, noResultMsg);
+      // Wait a moment then send the fallback Notification option
+      await new Promise(res => setTimeout(res, 500));
+      await sendButtons(user.phone, 'Want me to notify you when something comes up?', [
+        { type: 'reply', reply: { id: `subscribe_prompt`, title: 'Yes, alert me' } },
+        { type: 'reply', reply: { id: `cancel_prompt`, title: 'No thanks' } }
+      ]);
       return;
     }
 
@@ -101,19 +112,14 @@ export async function handleQueryEvents(
       return;
     }
 
-    // Multiple events — send list
+    // Multiple events — cleanly send list without blasting extra messages
     await sendText(user.phone, formatEventList(events, title));
 
-    // If 3 or fewer, also send action buttons for each
-    if (events.length <= 3) {
-      for (const event of events) {
-        await sendButtons(user.phone, `*[${event.title}]*`, [
-          { type: 'reply', reply: { id: `view_${event.id}`, title: 'Details' } },
-          { type: 'reply', reply: { id: `save_${event.id}`, title: 'Save' } },
-          { type: 'reply', reply: { id: `remind_${event.id}`, title: 'Remind' } },
-        ]);
-      }
-    }
+    // Save the event IDs to the user's conversational state so we can resolve "1", "2", etc.
+    const { setConversationState } = await import('../db/supabase.js');
+    await setConversationState(user.id, 'viewing_search_results', { 
+      events: events.slice(0, 10).map(e => e.id)
+    }, 60);
 
   } catch (error: any) {
     console.error('Query failed:', error.message);

@@ -215,9 +215,9 @@ export function formatDigest(events: Event[], digestType: 'morning' | 'evening')
   const lines: string[] = [];
 
   if (digestType === 'morning') {
-    lines.push(`*[Morning Events Update]* — ${dateStr}\n`);
+    lines.push(`🌅 *Morning Events Update* — ${dateStr}\n`);
   } else {
-    lines.push(`*[Evening Events Update]* — ${dateStr}\n`);
+    lines.push(`🌙 *Evening Events Update* — ${dateStr}\n`);
   }
 
   events.slice(0, 10).forEach(event => {
@@ -225,16 +225,21 @@ export function formatDigest(events: Event[], digestType: 'morning' | 'evening')
     const clubName = (event as any).club?.name || '';
     const venue = event.venue_normalized || event.venue || '';
 
-    lines.push(`*[${event.title}]*`);
-    lines.push(`   Time: ${timeStr}${venue ? `\n   Location: ${venue}` : ''}`);
+    const urlEncodedTitle = encodeURIComponent(event.title);
+    const waLink = `wa.me/917065526258?text=tell+me+about+${urlEncodedTitle}`;
+
+    lines.push(`🎯 *${event.title}*`);
+    lines.push(`   Time: ${timeStr}${venue ? `\n   📍 ${venue}` : ''}`);
     if (clubName) lines.push(`   By: ${clubName}`);
-    if (event.registration_link) lines.push(`   Link: ${event.registration_link}`);
-    lines.push('-----------------------------');
+    lines.push(`   🔗 Info: ${waLink}`);
+    lines.push('');
   });
 
   if (events.length > 10) {
-    lines.push(`\n${events.length - 10} more events — talk to me to see all!`);
+    lines.push(`${events.length - 10} more events — talk to me to see all!`);
   }
+  
+  lines.push('\n💬 _Ask me for reminders or search events!_');
 
   return lines.join('\n');
 }
