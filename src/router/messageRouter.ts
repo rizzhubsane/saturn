@@ -60,8 +60,8 @@ export async function routeMessage(user: User, message: WhatsAppMessage): Promis
     const text = message.text?.body?.trim() || '';
     const textLower = text.toLowerCase();
 
-    // Help
-    if (textLower === '/help' || textLower === '/menu' || textLower === '/start') {
+    // Help & Greetings
+    if (['/help', '/menu', '/start', 'hi', 'hello', 'hey', 'sup'].includes(textLower)) {
       return await handleHelp(user);
     }
 

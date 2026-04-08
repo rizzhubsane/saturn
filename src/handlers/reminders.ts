@@ -41,20 +41,46 @@ export async function handleReminder(user: User, eventIdPrefix: string): Promise
 
     await createReminder(user.id, event.id, remindAt);
 
+    function generateGCalLink(event: any): string {
+      const getUtcDateString = (dateObj: Date) => {
+        return dateObj.toISOString().replace(/-|:|\.\d\d\d/g, '');
+      };
+      
+      const startObj = buildEventDateTime(event.date, event.time);
+      const endObj = event.end_time 
+        ? buildEventDateTime(event.date, event.end_time) 
+        : new Date(startObj.getTime() + 2 * 60 * 60 * 1000); // default 2 hours long
+
+      const startDate = getUtcDateString(startObj);
+      const endDate = getUtcDateString(endObj);
+
+      const url = new URL('https://calendar.google.com/calendar/render');
+      url.searchParams.append('action', 'TEMPLATE');
+      url.searchParams.append('text', event.title);
+      url.searchParams.append('dates', `${startDate}/${endDate}`);
+      
+      if (event.description) url.searchParams.append('details', event.description.substring(0, 500));
+      if (event.venue) url.searchParams.append('location', event.venue);
+
+      return url.toString();
+    }
+
+    const gcalLink = generateGCalLink(event);
     const timeUntil = oneHourBefore > now ? '1 hour' : '15 minutes';
     await sendText(user.phone,
-      `⏰ Reminder set!\n\n` +
-      `I'll ping you ${timeUntil} before *${event.title}*.\n` +
-      `📅 ${formatHumanDate(event.date)}${event.time ? ` · ⏰ ${formatHumanTime(event.time)}` : ''}\n` +
-      `📍 ${event.venue || 'TBD'}`
+      `Reminder set!\n\n` +
+      `I'll ping you ${timeUntil} before *[${event.title}]*.\n` +
+      `Date: ${formatHumanDate(event.date)}${event.time ? ` · Time: ${formatHumanTime(event.time)}` : ''}\n` +
+      `Location: ${event.venue || 'TBD'}\n\n` +
+      `Add to Google Calendar:\n${gcalLink}`
     );
 
   } catch (error: any) {
     if (error.message.includes('duplicate') || error.message.includes('unique')) {
-      await sendText(user.phone, '✅ You already have a reminder set for this event!');
+      await sendText(user.phone, 'You already have a reminder set for this event!');
     } else {
-      console.error('❌ Reminder error:', error.message);
-      await sendText(user.phone, '❌ Couldn\'t set the reminder. Please try again.');
+      console.error('Reminder error:', error.message);
+      await sendText(user.phone, 'Couldn\'t set the reminder. Please try again.');
     }
   }
 }
@@ -66,15 +92,15 @@ export async function handleViewReminders(user: User): Promise<void> {
   const reminders = await getUserReminders(user.id);
 
   if (reminders.length === 0) {
-    await sendText(user.phone, '🔔 No pending reminders.\n\nBrowse events with /today or /week, then tap 🔔 to set one!');
+    await sendText(user.phone, 'No pending reminders.\n\nBrowse events with /today or /week, then tap Remind to set one!');
     return;
   }
 
-  const lines = ['🔔 *Your Reminders*\n'];
+  const lines = ['*[Your Reminders]*\n'];
   for (const r of reminders) {
     const evt = r.event as any;
     if (evt) {
-      lines.push(`• *${evt.title}* — ${formatHumanDate(evt.date)}${evt.time ? ` · ${formatHumanTime(evt.time)}` : ''}`);
+      lines.push(`- [${evt.title}] — ${formatHumanDate(evt.date)}${evt.time ? ` · ${formatHumanTime(evt.time)}` : ''}`);
     }
   }
 
