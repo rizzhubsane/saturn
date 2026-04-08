@@ -4,7 +4,7 @@ import { getTodayIST, getDateRange } from '../utils/dateParser.js';
 import type { Event, EventFilters, ParsedQuery } from '../types/index.js';
 import categoriesConfig from '../config/categories.json' with { type: "json" };
 
-const QUERY_SYSTEM_PROMPT = `You are a query parser for a campus events search system. A student sends a natural language message asking about events. Parse their intent into a structured query.
+const QUERY_SYSTEM_PROMPT = `You are Saturn, the campus assistant for IIT Delhi. A student sends a natural language message asking about events, clubs, or just talking to you. First, establish their core intent.
 
 Today's date is: {{CURRENT_DATE}}
 
@@ -13,23 +13,31 @@ Available categories:
 
 Respond with ONLY a JSON object:
 {
+  "intent_domain": "events" | "clubs" | "general",
+  "direct_reply": "if general, write your warm, helpful response here. null otherwise",
   "type": "search" | "today" | "tomorrow" | "this_week" | "this_weekend",
   "categories": ["array of matching category slugs, empty if not specified"],
   "keywords": ["array of search keywords"],
   "time_range_start": "YYYY-MM-DD or null",
   "time_range_end": "YYYY-MM-DD or null",
-  "intent": "brief description of what the user is looking for"
+  "intent": "brief description"
 }
 
 HINTS:
-- For queries involving "charity", "welfare", "blood donation", "community", or "mental health", ensure you map to the "wellness" category.
-- For queries involving "hardware", "motorsports", "biology", "physics", or "robotics", map to "engineering".
-- For queries like "consulting", "quant", "stock market", map to "finance".`;
+- For queries asking "is there a X club" or "what clubs exist", set intent_domain to "clubs". Extract category if inferable.
+- For queries asking about an event, set intent_domain to "events". Map "hardware", "motorsports", etc. to "engineering", and "mental health", "charity" to "wellness".
+- For generic conversation ("who are you", "hi", "how does this work"), set intent_domain to "general", set type to "search", and write a friendly response in direct_reply.`;
 
 /**
  * Parse a natural language query using LLM, then search the database.
  */
-export async function searchEvents(naturalQuery: string): Promise<{ events: Event[]; intent: string }> {
+export async function searchEvents(naturalQuery: string): Promise<{
+  domain: 'events' | 'clubs' | 'general';
+  events?: Event[];
+  intent: string;
+  direct_reply?: string;
+  categories?: string[];
+}> {
   const today = getTodayIST();
 
   const systemPrompt = QUERY_SYSTEM_PROMPT
@@ -40,7 +48,23 @@ export async function searchEvents(naturalQuery: string): Promise<{ events: Even
     temperature: 0.2,
   });
 
-  // Build filters from parsed query
+  if (parsed.intent_domain === 'general') {
+    return {
+      domain: 'general',
+      intent: parsed.intent,
+      direct_reply: parsed.direct_reply
+    };
+  }
+
+  if (parsed.intent_domain === 'clubs') {
+    return {
+      domain: 'clubs',
+      intent: parsed.intent,
+      categories: parsed.categories
+    };
+  }
+
+  // Domain must be events. Build filters from parsed query
   const filters: EventFilters = {
     status: 'confirmed',
     limit: 10,
@@ -62,16 +86,16 @@ export async function searchEvents(naturalQuery: string): Promise<{ events: Even
     filters.dateEnd = parsed.time_range_end;
   }
 
-  if (parsed.categories.length > 0) {
+  if (parsed.categories && parsed.categories.length > 0) {
     filters.categories = parsed.categories;
   }
 
-  if (parsed.keywords.length > 0) {
+  if (parsed.keywords && parsed.keywords.length > 0) {
     filters.keywords = parsed.keywords;
   }
 
   const events = await dbQueryEvents(filters);
-  return { events, intent: parsed.intent };
+  return { domain: 'events', events, intent: parsed.intent };
 }
 
 /**

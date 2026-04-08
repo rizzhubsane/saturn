@@ -172,6 +172,8 @@ export interface ParsedEvent {
 }
 
 export interface ParsedQuery {
+  intent_domain: 'events' | 'clubs' | 'general';
+  direct_reply?: string;
   type: 'search' | 'today' | 'tomorrow' | 'this_week' | 'this_weekend';
   categories: string[];
   keywords: string[];

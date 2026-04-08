@@ -60,7 +60,23 @@ export async function handleQueryEvents(
       case 'natural': {
         // Natural language query via LLM
         const result = await searchEvents(param || '');
-        events = result.events;
+        
+        if (result.domain === 'general') {
+          if (result.direct_reply) {
+            await sendText(user.phone, result.direct_reply);
+          }
+          return;
+        }
+
+        if (result.domain === 'clubs') {
+          const { handleClubDiscovery } = await import('./clubDiscovery.js');
+          const category = result.categories && result.categories.length > 0 ? result.categories[0] : undefined;
+          await handleClubDiscovery(user, category);
+          return;
+        }
+
+        // Must be domain === 'events'
+        events = result.events || [];
         // Make the title warm and conversational instead of printing the raw parser intent
         title = result.intent?.length > 25 
           ? "Here's what I found for you" 
