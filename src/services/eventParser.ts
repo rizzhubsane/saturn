@@ -29,7 +29,12 @@ Respond with ONLY a JSON object, no markdown, no backticks, no preamble:
   "confidence": 0.0-1.0
 }
 
-If a field cannot be determined, use null. For date, you MUST provide a value — make your best guess from context and set confidence accordingly.`;
+If a field cannot be determined, use null. For date, you MUST provide a value.
+HINTS FOR CATEGORIES:
+- Blood donation, charity, welfare, mental health -> "wellness"
+- Stand-up comedy, movie nights, casual meetups -> "cultural" or "social"
+- Resume building, placement talks -> "career"
+- Hackathons -> "tech" and "competition"`;
 
 /**
  * Parse a raw club publicity message into structured event data.

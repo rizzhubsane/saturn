@@ -19,7 +19,10 @@ Respond with ONLY a JSON object:
   "time_range_start": "YYYY-MM-DD or null",
   "time_range_end": "YYYY-MM-DD or null",
   "intent": "brief description of what the user is looking for"
-}`;
+}
+
+HINTS:
+- For queries involving "charity", "welfare", "blood donation", "community", or "mental health", ensure you map to the "wellness" category.`;
 
 /**
  * Parse a natural language query using LLM, then search the database.

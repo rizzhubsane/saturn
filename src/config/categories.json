@@ -6,6 +6,7 @@
     { "slug": "career", "label": "Career & Placement", "emoji": "💼" },
     { "slug": "startup", "label": "Startup & Business", "emoji": "🚀" },
     { "slug": "academic", "label": "Academic & Research", "emoji": "📚" },
+    { "slug": "wellness", "label": "Wellness & Social Impact", "emoji": "❤️" },
     { "slug": "social", "label": "Social & Chill", "emoji": "🍕" },
     { "slug": "workshop", "label": "Workshops", "emoji": "🛠️" },
     { "slug": "talk", "label": "Talks & Lectures", "emoji": "🎤" },
