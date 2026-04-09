@@ -425,6 +425,34 @@ export async function getSubscribersForCategory(category: string): Promise<User[
   return (data || []).map((d: any) => d.user).filter(Boolean) as User[];
 }
 
+export async function setUserSubscriptions(userId: string, categories: string[]): Promise<void> {
+  const uniqueCategories = Array.from(new Set(categories.map(c => c.trim().toLowerCase()).filter(Boolean)));
+
+  const { error: deleteError } = await supabase
+    .from('subscriptions')
+    .delete()
+    .eq('user_id', userId);
+  if (deleteError) throw new Error(`Failed to clear subscriptions: ${deleteError.message}`);
+
+  if (uniqueCategories.length === 0) return;
+
+  const rows = uniqueCategories.map(category => ({ user_id: userId, category }));
+  const { error: insertError } = await supabase
+    .from('subscriptions')
+    .insert(rows);
+  if (insertError) throw new Error(`Failed to set subscriptions: ${insertError.message}`);
+}
+
+export async function getUsersForDigest(): Promise<User[]> {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .neq('role', 'god')
+    .eq('onboarded', true);
+  if (error) throw new Error(`Failed to fetch digest users: ${error.message}`);
+  return (data || []) as User[];
+}
+
 // ============================================
 // EVENT VIEWS (ANALYTICS)
 // ============================================

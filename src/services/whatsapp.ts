@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { WHATSAPP_API_URL, WHATSAPP_ACCESS_TOKEN } from '../config/env.js';
 import type { WhatsAppButton, WhatsAppListSection } from '../types/index.js';
+import { buildMessageWithTip } from '../utils/discoveryTips.js';
 
 const api = axios.create({
   baseURL: WHATSAPP_API_URL,
@@ -14,9 +15,11 @@ const api = axios.create({
  * Send a plain text message.
  */
 export async function sendText(to: string, text: string): Promise<void> {
+  const textWithTip = buildMessageWithTip(to, text);
+
   // WhatsApp has a 4096 character limit
-  if (text.length > 4096) {
-    const chunks = splitMessage(text, 4000);
+  if (textWithTip.length > 4096) {
+    const chunks = splitMessage(textWithTip, 4000);
     for (const chunk of chunks) {
       await api.post('/messages', {
         messaging_product: 'whatsapp',
@@ -34,10 +37,10 @@ export async function sendText(to: string, text: string): Promise<void> {
     messaging_product: 'whatsapp',
     to,
     type: 'text',
-    text: { body: text },
+    text: { body: textWithTip },
   });
 
-  logOutgoing(to, text);
+  logOutgoing(to, textWithTip);
 }
 
 function logOutgoing(phone: string, text: string): void {
@@ -74,13 +77,15 @@ export async function sendButtons(
   header?: string,
   footer?: string
 ): Promise<void> {
+  const messageWithTip = buildMessageWithTip(to, body);
+  const tipText = messageWithTip.split('\n\n').pop() || '';
   const payload: any = {
     messaging_product: 'whatsapp',
     to,
     type: 'interactive',
     interactive: {
       type: 'button',
-      body: { text: body.substring(0, 1024) },
+      body: { text: messageWithTip.substring(0, 1024) },
       action: {
         buttons: buttons.slice(0, 3), // Max 3 buttons
       },
@@ -90,9 +95,8 @@ export async function sendButtons(
   if (header) {
     payload.interactive.header = { type: 'text', text: header.substring(0, 60) };
   }
-  if (footer) {
-    payload.interactive.footer = { text: footer.substring(0, 60) };
-  }
+  const footerText = footer || tipText;
+  if (footerText) payload.interactive.footer = { text: footerText.substring(0, 60) };
 
   await api.post('/messages', payload);
 }
@@ -108,13 +112,15 @@ export async function sendList(
   header?: string,
   footer?: string
 ): Promise<void> {
+  const messageWithTip = buildMessageWithTip(to, body);
+  const tipText = messageWithTip.split('\n\n').pop() || '';
   const payload: any = {
     messaging_product: 'whatsapp',
     to,
     type: 'interactive',
     interactive: {
       type: 'list',
-      body: { text: body.substring(0, 1024) },
+      body: { text: messageWithTip.substring(0, 1024) },
       action: {
         button: buttonText.substring(0, 20),
         sections: sections.slice(0, 10).map(section => ({
@@ -132,9 +138,8 @@ export async function sendList(
   if (header) {
     payload.interactive.header = { type: 'text', text: header.substring(0, 60) };
   }
-  if (footer) {
-    payload.interactive.footer = { text: footer.substring(0, 60) };
-  }
+  const footerText = footer || tipText;
+  if (footerText) payload.interactive.footer = { text: footerText.substring(0, 60) };
 
   await api.post('/messages', payload);
 }

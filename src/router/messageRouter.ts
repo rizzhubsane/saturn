@@ -15,6 +15,7 @@ import { handleQueryEvents, handleEventDetail } from '../handlers/queryEvents.js
 import { handleReminder } from '../handlers/reminders.js';
 import { handleSavedEvents, handleSaveEvent, handleUnsaveEvent } from '../handlers/savedEvents.js';
 import { handleSubscribe, handleUnsubscribe, handleMySubscriptions } from '../handlers/subscriptions.js';
+import { handleDigestSetup, handleDigestPreferenceReply } from '../handlers/userDigest.js';
 import { handleClubDiscovery, handleClubDetail } from '../handlers/clubDiscovery.js';
 import { handleClubProfile, handleEditClub } from '../handlers/clubProfile.js';
 import { handleAdminCommands } from '../handlers/adminCommands.js';
@@ -138,6 +139,9 @@ export async function routeMessage(user: User, message: WhatsAppMessage): Promis
     }
 
     // Subscriptions
+    if (textLower === '/digest') {
+      return await handleDigestSetup(user);
+    }
     if (textLower.startsWith('/subscribe ')) {
       const category = text.substring(11).trim();
       return await handleSubscribe(user, category);
@@ -156,7 +160,7 @@ export async function routeMessage(user: User, message: WhatsAppMessage): Promis
 
     // God commands
     if (textLower.startsWith('/addorg ') || textLower.startsWith('/promote ') || 
-        textLower.startsWith('/broadcast ') || textLower === '/stats' || textLower === '/purge' || textLower === '/digest') {
+        textLower.startsWith('/broadcast ') || textLower === '/stats' || textLower === '/purge' || textLower === '/digesttest') {
       if (user.role !== 'god') {
         return await sendText(user.phone, '❌ This command is restricted.');
       }
@@ -200,6 +204,9 @@ async function handleStatefulMessage(user: User, message: WhatsAppMessage, state
 
     case 'onboarding_interests':
       return await handleOnboardingReply(user, message);
+
+    case 'awaiting_digest_preferences':
+      return await handleDigestPreferenceReply(user, message);
 
     case 'editing_club':
       return await handleEditClub(user, message);

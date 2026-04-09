@@ -8,11 +8,16 @@ import {
   expirePastEvents,
   cleanupExpiredStates,
   getSubscribersForCategory,
+  getUsersForDigest,
+  getUserSubscriptions,
   supabase,
 } from '../db/supabase.js';
 import { formatDigest, formatEventCard } from '../utils/formatter.js';
 import { getTodayIST, getDateRange, formatHumanDate, formatHumanTime } from '../utils/dateParser.js';
 import { WHATSAPP_COMMUNITY_GROUP_ID } from '../config/env.js';
+import categoriesConfig from '../config/categories.json' with { type: "json" };
+
+const categoryMap = new Map(categoriesConfig.categories.map(c => [c.slug, c]));
 
 /**
  * Initialize all scheduled jobs.
@@ -24,12 +29,14 @@ export function initScheduler(): void {
   cron.schedule('0 9 * * *', async () => {
     console.log('📨 Running morning digest...');
     await sendDigest('morning');
+    await sendUserDigests('morning');
   }, { timezone: 'Asia/Kolkata' });
 
   // Evening digest — 6:00 PM IST daily
   cron.schedule('0 18 * * *', async () => {
     console.log('📨 Running evening digest...');
     await sendDigest('evening');
+    await sendUserDigests('evening');
   }, { timezone: 'Asia/Kolkata' });
 
   // Reminder sender — every minute
@@ -215,5 +222,59 @@ async function notifySubscribers(): Promise<void> {
 
   } catch (error: any) {
     console.error('❌ Subscriber notification error:', error.message);
+  }
+}
+
+/**
+ * Send personalized digest to each user based on preferences.
+ */
+async function sendUserDigests(type: 'morning' | 'evening'): Promise<void> {
+  try {
+    const users = await getUsersForDigest();
+    if (users.length === 0) return;
+
+    const today = getTodayIST();
+
+    for (const user of users) {
+      try {
+        const subscriptions = await getUserSubscriptions(user.id);
+        const interests = user.interests || [];
+        const categories = Array.from(new Set([...subscriptions, ...interests]));
+
+        // Skip users with no selected preferences.
+        if (categories.length === 0) continue;
+
+        const events = await queryEvents({
+          dateStart: today,
+          dateEnd: today,
+          status: 'confirmed',
+          categories,
+        });
+
+        const filtered = type === 'morning'
+          ? events
+          : events.filter(e => {
+            if (!e.time) return true;
+            const hour = parseInt(e.time.split(':')[0]);
+            return hour >= 17;
+          });
+
+        if (filtered.length === 0) continue;
+
+        const labels = categories
+          .map(slug => categoryMap.get(slug)?.label || slug)
+          .slice(0, 4)
+          .join(', ');
+
+        await sendText(
+          user.phone,
+          `*Your Daily Digest*${labels ? ` (${labels})` : ''}\n\n${formatDigest(filtered, type)}`
+        );
+      } catch {
+        // Continue with other users if one send fails
+      }
+    }
+  } catch (error: any) {
+    console.error('❌ User digest error:', error.message);
   }
 }

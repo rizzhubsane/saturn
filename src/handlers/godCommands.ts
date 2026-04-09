@@ -26,7 +26,7 @@ export async function handleGodCommands(user: User, message: WhatsAppMessage): P
     await handleStats(user);
   } else if (textLower === '/purge') {
     await handlePurge(user);
-  } else if (textLower === '/digest') {
+  } else if (textLower === '/digesttest') {
     await handleTestDigest(user);
   }
 }

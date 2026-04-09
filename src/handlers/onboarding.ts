@@ -59,9 +59,9 @@ async function sendInterestBatch(user: User, batchIndex: number): Promise<void> 
     reply: { id: `interest_${cat.slug}`, title: cat.label },
   }));
 
-  const prompt = batchIndex === 0
-    ? 'Tap any that interest you:'
-    : 'More options:';
+  const total = BATCHES.length;
+  const step = batchIndex + 1;
+  const prompt = `Interest setup (${step}/${total})\nTap what matches you:`;
 
   await sendButtons(user.phone, prompt, buttons);
 }
@@ -128,9 +128,10 @@ export async function handleOnboardingReply(user: User, message: WhatsAppMessage
 
   if (nextBatch >= BATCHES.length) {
     // Show one final prompt
+    const total = BATCHES.length;
     await sendButtons(
       user.phone,
-      `Added ${catLabel}! You're all set.`,
+      `Interest setup (${total}/${total})\nAdded ${catLabel}! You're all set.`,
       [
         { type: 'reply', reply: { id: 'onboarding_done', title: 'Show me events!' } },
         { type: 'reply', reply: { id: 'onboarding_next', title: 'Pick more' } },
