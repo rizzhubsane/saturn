@@ -16,7 +16,6 @@ const api = axios.create({
 export async function sendText(to: string, text: string): Promise<void> {
   // WhatsApp has a 4096 character limit
   if (text.length > 4096) {
-    // Split into chunks
     const chunks = splitMessage(text, 4000);
     for (const chunk of chunks) {
       await api.post('/messages', {
@@ -26,6 +25,8 @@ export async function sendText(to: string, text: string): Promise<void> {
         text: { body: chunk },
       });
     }
+    // Log only the first chunk to keep history concise
+    logOutgoing(to, chunks[0]);
     return;
   }
 
@@ -35,6 +36,17 @@ export async function sendText(to: string, text: string): Promise<void> {
     type: 'text',
     text: { body: text },
   });
+
+  logOutgoing(to, text);
+}
+
+function logOutgoing(phone: string, text: string): void {
+  import('../db/supabase.js').then(({ supabase, logMessage }) => {
+    supabase.from('users').select('id').eq('phone', phone).single()
+      .then(({ data }: any) => {
+        if (data?.id) logMessage(data.id, 'out', text, 'text').catch(() => {});
+      });
+  }).catch(() => {});
 }
 
 /**

@@ -1,5 +1,5 @@
 import type { User } from '../types/index.js';
-import { sendText } from '../services/whatsapp.js';
+import { sendText, sendButtons } from '../services/whatsapp.js';
 import { getAllActiveClubs, getClubBySlug, getClubByName, getClubWithStats, getEventsByClub } from '../db/supabase.js';
 import { formatClubList, formatClubProfile, formatEventList } from '../utils/formatter.js';
 import type { Club } from '../types/index.js';
@@ -23,9 +23,14 @@ export async function handleClubDiscovery(user: User, category?: string): Promis
 
     await sendText(user.phone, formatClubList(clubs));
 
+    await sendButtons(user.phone, 'Want to see events instead?', [
+      { type: 'reply', reply: { id: 'action_today', title: 'Today\'s Events' } },
+      { type: 'reply', reply: { id: 'action_this_week', title: 'This Week' } },
+    ]);
+
   } catch (error: any) {
-    console.error('❌ Club discovery error:', error.message);
-    await sendText(user.phone, '❌ Couldn\'t load clubs. Please try again.');
+    console.error('Club discovery error:', error.message);
+    await sendText(user.phone, 'Couldn\'t load clubs. Please try again.');
   }
 }
 

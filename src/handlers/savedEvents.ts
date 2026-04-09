@@ -1,5 +1,5 @@
 import type { User } from '../types/index.js';
-import { sendText } from '../services/whatsapp.js';
+import { sendText, sendButtons } from '../services/whatsapp.js';
 import { saveEvent, unsaveEvent, getSavedEvents } from '../db/supabase.js';
 import { formatEventList } from '../utils/formatter.js';
 
@@ -101,14 +101,22 @@ export async function handleSavedEvents(user: User): Promise<void> {
     const events = await getSavedEvents(user.id);
 
     if (events.length === 0) {
-      await sendText(user.phone, '💾 No saved events yet.\n\nBrowse events with /today or /week, then tap 💾 to save ones you like!');
+      await sendButtons(user.phone, 'No saved events yet. Browse events and tap Save to bookmark them!', [
+        { type: 'reply', reply: { id: 'action_today', title: 'Today\'s Events' } },
+        { type: 'reply', reply: { id: 'action_this_week', title: 'This Week' } },
+      ]);
       return;
     }
 
     await sendText(user.phone, formatEventList(events, 'Your Saved Events'));
 
+    const { setConversationState } = await import('../db/supabase.js');
+    await setConversationState(user.id, 'viewing_search_results', {
+      events: events.slice(0, 10).map(e => e.id),
+    }, 60);
+
   } catch (error: any) {
-    console.error('❌ Saved events error:', error.message);
-    await sendText(user.phone, '❌ Couldn\'t load your saved events. Please try again.');
+    console.error('Saved events error:', error.message);
+    await sendText(user.phone, 'Couldn\'t load your saved events. Please try again.');
   }
 }

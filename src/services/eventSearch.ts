@@ -1,5 +1,5 @@
 import { completeJSON } from './llm.js';
-import { queryEvents as dbQueryEvents } from '../db/supabase.js';
+import { queryEvents as dbQueryEvents, getRecentMessages } from '../db/supabase.js';
 import { getTodayIST, getDateRange } from '../utils/dateParser.js';
 import type { Event, EventFilters, ParsedQuery } from '../types/index.js';
 import categoriesConfig from '../config/categories.json' with { type: "json" };
@@ -31,7 +31,7 @@ HINTS:
 /**
  * Parse a natural language query using LLM, then search the database.
  */
-export async function searchEvents(naturalQuery: string): Promise<{
+export async function searchEvents(naturalQuery: string, userId?: string): Promise<{
   domain: 'events' | 'clubs' | 'general';
   events?: Event[];
   intent: string;
@@ -44,7 +44,21 @@ export async function searchEvents(naturalQuery: string): Promise<{
     .replace('{{CURRENT_DATE}}', today)
     .replace('{{CATEGORIES_JSON}}', JSON.stringify(categoriesConfig.categories.map(c => ({ slug: c.slug, label: c.label }))));
 
-  const parsed = await completeJSON<ParsedQuery>(systemPrompt, naturalQuery, {
+  // Build user prompt with conversation history for context
+  let userPrompt = naturalQuery;
+  if (userId) {
+    try {
+      const history = await getRecentMessages(userId, 4);
+      if (history.length > 0) {
+        const historyStr = history
+          .map(m => `${m.direction === 'in' ? 'User' : 'Bot'}: ${m.content.substring(0, 200)}`)
+          .join('\n');
+        userPrompt = `RECENT CONVERSATION (for context):\n${historyStr}\n\nCURRENT MESSAGE:\n${naturalQuery}`;
+      }
+    } catch { /* proceed without history */ }
+  }
+
+  const parsed = await completeJSON<ParsedQuery>(systemPrompt, userPrompt, {
     temperature: 0.2,
   });
 

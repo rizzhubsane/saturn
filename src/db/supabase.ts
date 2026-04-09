@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from '../config/env.js';
-import type { User, Club, Event, Reminder, ConversationState, EventFilters, ClubWithStats } from '../types/index.js';
+import type { User, Club, Event, Reminder, ConversationState, EventFilters, ClubWithStats, MessageHistory } from '../types/index.js';
 
 // ── Initialize Supabase client with service role key ──
 const supabase: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -579,4 +579,51 @@ export async function inviteCodeExists(code: string): Promise<boolean> {
     .eq('invite_code', code)
     .single();
   return !!data;
+}
+
+// ============================================
+// MESSAGE HISTORY (V2)
+// ============================================
+
+export async function logMessage(
+  userId: string,
+  direction: 'in' | 'out',
+  content: string,
+  messageType: string = 'text'
+): Promise<void> {
+  await supabase.from('message_history').insert({
+    user_id: userId,
+    direction,
+    content: content.substring(0, 2000),
+    message_type: messageType,
+  });
+
+  // Keep only the last 10 messages per user (delete older ones)
+  const { data: recent } = await supabase
+    .from('message_history')
+    .select('id')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .range(10, 100);
+
+  if (recent && recent.length > 0) {
+    await supabase
+      .from('message_history')
+      .delete()
+      .in('id', recent.map(r => r.id));
+  }
+}
+
+export async function getRecentMessages(
+  userId: string,
+  limit: number = 5
+): Promise<MessageHistory[]> {
+  const { data, error } = await supabase
+    .from('message_history')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) return [];
+  return ((data || []) as MessageHistory[]).reverse();
 }

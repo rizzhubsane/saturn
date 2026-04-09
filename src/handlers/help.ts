@@ -1,33 +1,35 @@
 import type { User } from '../types/index.js';
-import { sendText } from '../services/whatsapp.js';
+import { sendText, sendButtons } from '../services/whatsapp.js';
 import { formatHelp, formatEventList } from '../utils/formatter.js';
 import { searchByCommand } from '../services/eventSearch.js';
 
 /**
- * Handle /help command — sends role-aware command list and hot events.
+ * Handle /help command -- sends role-differentiated help + action buttons.
  */
 export async function handleHelp(user: User): Promise<void> {
   const helpText = formatHelp(user.role);
-  
+
   try {
     await sendText(user.phone, helpText);
-    
-    // Slight conversational delay
-    await new Promise(resolve => setTimeout(resolve, 800));
 
-    const todayEvents = await searchByCommand('today');
-    if (todayEvents.length > 0) {
-      const topEventsStr = formatEventList(todayEvents.slice(0, 2), "🔥 Hot Today");
-      await sendText(user.phone, topEventsStr);
-      
-      // Since we just showed events, save context so they can reply '1' to view details
-      const { setConversationState } = await import('../db/supabase.js');
-      await setConversationState(user.id, 'viewing_search_results', { 
-        events: todayEvents.slice(0, 2).map(e => e.id)
-      }, 60);
-      return;
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Role-appropriate quick action buttons
+    if (user.role === 'god' || user.role === 'admin' || user.role === 'power_user') {
+      await sendButtons(user.phone, 'Quick actions:', [
+        { type: 'reply', reply: { id: 'action_post_another', title: 'Post Event' } },
+        { type: 'reply', reply: { id: 'action_today', title: 'Today\'s Events' } },
+        { type: 'reply', reply: { id: 'action_clubs', title: 'Browse Clubs' } },
+      ]);
+    } else {
+      await sendButtons(user.phone, 'What would you like to do?', [
+        { type: 'reply', reply: { id: 'action_today', title: 'Today\'s Events' } },
+        { type: 'reply', reply: { id: 'action_this_week', title: 'This Week' } },
+        { type: 'reply', reply: { id: 'action_clubs', title: 'Browse Clubs' } },
+      ]);
     }
+
   } catch (err) {
-    // silently fail
+    // silently fail on buttons
   }
 }

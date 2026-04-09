@@ -1,5 +1,5 @@
 import type { User, ConversationState } from '../types/index.js';
-import { sendText } from '../services/whatsapp.js';
+import { sendText, sendButtons, sendList } from '../services/whatsapp.js';
 import { createEvent, clearConversationState, getClubById, setConversationState } from '../db/supabase.js';
 import { processEventImage } from '../services/imageHandler.js';
 
@@ -12,7 +12,7 @@ export async function handleConfirmEvent(
   state: ConversationState | null
 ): Promise<void> {
   if (!state || !state.data?.parsed) {
-    await sendText(user.phone, '❌ No pending event to confirm. Send /post to start over.');
+    await sendText(user.phone, 'No pending event to confirm. Send /post to start over.');
     return;
   }
 
@@ -21,22 +21,20 @@ export async function handleConfirmEvent(
   switch (action) {
     case 'confirm': {
       try {
-        await sendText(user.phone, '📤 Posting your event...');
+        await sendText(user.phone, 'Posting your event...');
 
-        // Upload image to Supabase Storage if present
         let posterUrl: string | null = null;
         if (hasImage && mediaId && user.club_id) {
           try {
             const club = await getClubById(user.club_id);
-            const tempId = Date.now().toString(36); // temp ID before event is created
+            const tempId = Date.now().toString(36);
             const result = await processEventImage(mediaId, club?.slug || 'unknown', tempId);
             posterUrl = result.publicUrl;
           } catch (err: any) {
-            console.warn('⚠️ Image upload failed:', err.message);
+            console.warn('Image upload failed:', err.message);
           }
         }
 
-        // Create the event in DB
         const event = await createEvent({
           club_id: user.club_id!,
           posted_by: user.id,
@@ -49,6 +47,9 @@ export async function handleConfirmEvent(
           venue: parsed.venue_raw || parsed.venue || null,
           venue_normalized: parsed.venue || null,
           categories: parsed.categories || [],
+          highlights: parsed.highlights || [],
+          links: parsed.links || [],
+          event_type: parsed.event_type || 'other',
           registration_link: parsed.registration_link || null,
           poster_url: posterUrl,
           poster_ocr_text: state.data.ocrText || null,
@@ -60,41 +61,112 @@ export async function handleConfirmEvent(
         await clearConversationState(user.id);
 
         await sendText(user.phone,
-          `✅ *Event posted successfully!*\n\n` +
-          `🎯 *${parsed.title}*\n` +
-          `📅 ${parsed.date}${parsed.time ? ` · ${parsed.time}` : ''}\n\n` +
-          `Your event will be included in the next community broadcast.\n` +
+          `*Event posted!*\n\n` +
+          `*${parsed.title}*\n` +
+          `${parsed.date}${parsed.time ? ` at ${parsed.time}` : ''}\n\n` +
+          `It'll be in the next community broadcast.\n` +
           `Event ID: \`${event.id.substring(0, 8)}\`\n\n` +
-          `I'll send you analytics after the event date. 📊`
+          `I'll send you analytics after the event.`
         );
 
+        await sendButtons(user.phone, 'What next?', [
+          { type: 'reply', reply: { id: 'action_post_another', title: 'Post Another' } },
+          { type: 'reply', reply: { id: `view_${event.id}`, title: 'View Event' } },
+        ]);
+
       } catch (error: any) {
-        console.error('❌ Event creation failed:', error.message);
-        await sendText(user.phone, '❌ Failed to post the event. Please try again with /post.');
+        console.error('Event creation failed:', error.message);
+        await sendText(user.phone, 'Failed to post the event. Please try again with /post.');
         await clearConversationState(user.id);
       }
       break;
     }
 
     case 'edit': {
-      await setConversationState(user.id, 'awaiting_event_content', { 
-        previousParsed: parsed,
-        rawMessage 
+      await setConversationState(user.id, 'awaiting_edit', {
+        parsed,
+        rawMessage,
+        mediaId,
+        hasImage,
+        ocrText: state.data.ocrText,
       });
-      await sendText(user.phone,
-        '✏️ Send me the corrected event details.\n\n' +
-        'You can send the full updated message, or describe the change:\n' +
-        '• "Change time to 8 PM"\n' +
-        '• "Venue is SAC not LHC"\n' +
-        '• Re-send the entire message with fixes'
+
+      await sendList(
+        user.phone,
+        `Which part needs fixing? Pick a field or just type your correction (e.g. "change time to 8 PM").`,
+        'Pick Field',
+        [
+          {
+            title: 'Event Details',
+            rows: [
+              { id: 'editfield_title', title: 'Title', description: truncate(parsed.title, 72) },
+              { id: 'editfield_datetime', title: 'Date / Time', description: `${parsed.date}${parsed.time ? ' ' + parsed.time : ''}` },
+              { id: 'editfield_venue', title: 'Venue', description: truncate(parsed.venue || 'Not set', 72) },
+              { id: 'editfield_description', title: 'Description', description: truncate(parsed.description || 'Not set', 72) },
+            ]
+          },
+          {
+            title: 'Tags & Extras',
+            rows: [
+              { id: 'editfield_categories', title: 'Categories', description: (parsed.categories || []).join(', ').substring(0, 72) || 'None' },
+              { id: 'editfield_highlights', title: 'Highlights', description: (parsed.highlights || []).join(', ').substring(0, 72) || 'None' },
+              { id: 'editfield_links', title: 'Links', description: (parsed.links || []).map((l: any) => l.label).join(', ').substring(0, 72) || 'None' },
+            ]
+          },
+          {
+            title: 'Actions',
+            rows: [
+              { id: 'editfield_rewrite', title: 'Re-send Entire Message', description: 'Start over with new content' },
+            ]
+          }
+        ]
       );
       break;
     }
 
     case 'cancel': {
       await clearConversationState(user.id);
-      await sendText(user.phone, '❌ Event cancelled. Send /post whenever you\'re ready to try again.');
+      await sendText(user.phone, 'Event cancelled. Send /post whenever you\'re ready to try again.');
       break;
     }
   }
+}
+
+/**
+ * Handle field-specific edit selection from the list.
+ */
+export async function handleEditFieldSelection(
+  user: User,
+  fieldId: string,
+  state: ConversationState
+): Promise<void> {
+  const field = fieldId.replace('editfield_', '');
+  const parsed = state.data.parsed;
+
+  if (field === 'rewrite') {
+    await setConversationState(user.id, 'awaiting_event_content', {});
+    await sendText(user.phone, 'Send me the updated event message (text + optional poster).');
+    return;
+  }
+
+  const prompts: Record<string, string> = {
+    title: `Current title: *${parsed.title}*\n\nSend the corrected title:`,
+    datetime: `Current: ${parsed.date}${parsed.time ? ' at ' + parsed.time : ''}\n\nSend the corrected date and/or time (e.g. "April 15, 8 PM"):`,
+    venue: `Current venue: ${parsed.venue || 'Not set'}\n\nSend the corrected venue:`,
+    description: `Current description:\n${parsed.description || 'None'}\n\nSend the corrected description:`,
+    categories: `Current categories: ${(parsed.categories || []).join(', ')}\n\nSend the corrected categories (comma-separated, e.g. "tech, workshop"):`,
+    highlights: `Current highlights: ${(parsed.highlights || []).join(', ') || 'None'}\n\nSend the corrected highlights (what makes this event worth attending):`,
+    links: `Current links:\n${(parsed.links || []).map((l: any) => `${l.label}: ${l.url}`).join('\n') || 'None'}\n\nSend the corrected links:`,
+  };
+
+  await setConversationState(user.id, 'awaiting_edit', {
+    ...state.data,
+    editingField: field,
+  });
+
+  await sendText(user.phone, prompts[field] || 'Send your correction:');
+}
+
+function truncate(str: string, max: number): string {
+  return str.length > max ? str.substring(0, max - 1) + '...' : str;
 }

@@ -58,8 +58,7 @@ export async function handleQueryEvents(
         break;
       }
       case 'natural': {
-        // Natural language query via LLM
-        const result = await searchEvents(param || '');
+        const result = await searchEvents(param || '', user.id);
         
         if (result.domain === 'general') {
           if (result.direct_reply) {
@@ -102,28 +101,26 @@ export async function handleQueryEvents(
         : `No events found.`;
 
       await sendText(user.phone, noResultMsg);
-      // Wait a moment then send the fallback Notification option
       await new Promise(res => setTimeout(res, 500));
       await sendButtons(user.phone, 'Want me to notify you when something comes up?', [
-        { type: 'reply', reply: { id: `subscribe_prompt`, title: 'Yes, alert me' } },
-        { type: 'reply', reply: { id: `cancel_prompt`, title: 'No thanks' } }
+        { type: 'reply', reply: { id: 'subscribe_prompt', title: 'Yes, alert me' } },
+        { type: 'reply', reply: { id: 'action_this_week', title: 'Try This Week' } },
+        { type: 'reply', reply: { id: 'cancel_prompt', title: 'No thanks' } },
       ]);
       return;
     }
 
     if (events.length === 1) {
-      // Single event — show full card
       await sendText(user.phone, formatEventCard(events[0]));
 
-      // Send poster if available
       if (events[0].poster_url) {
         await sendImage(user.phone, events[0].poster_url).catch(() => { });
       }
 
-      // Action buttons
       await sendButtons(user.phone, 'What would you like to do?', [
-        { type: 'reply', reply: { id: `remind_${events[0].id}`, title: '🎟️ RSVP / Remind' } },
-        { type: 'reply', reply: { id: `pass_${events[0].id}`, title: '👎 Not Interested' } },
+        { type: 'reply', reply: { id: `remind_${events[0].id}`, title: 'RSVP / Remind' } },
+        { type: 'reply', reply: { id: `save_${events[0].id}`, title: 'Save' } },
+        { type: 'reply', reply: { id: `pass_${events[0].id}`, title: 'Not Interested' } },
       ]);
       return;
     }
@@ -163,8 +160,9 @@ export async function handleEventDetail(user: User, eventId: string): Promise<vo
     }
 
     await sendButtons(user.phone, 'What would you like to do?', [
-      { type: 'reply', reply: { id: `remind_${event.id}`, title: '🎟️ RSVP / Remind' } },
-      { type: 'reply', reply: { id: `pass_${event.id}`, title: '👎 Not Interested' } },
+      { type: 'reply', reply: { id: `remind_${event.id}`, title: 'RSVP / Remind' } },
+      { type: 'reply', reply: { id: `save_${event.id}`, title: 'Save' } },
+      { type: 'reply', reply: { id: `pass_${event.id}`, title: 'Not Interested' } },
     ]);
 
   } catch (error: any) {

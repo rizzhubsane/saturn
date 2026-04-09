@@ -26,6 +26,8 @@ export async function handleGodCommands(user: User, message: WhatsAppMessage): P
     await handleStats(user);
   } else if (textLower === '/purge') {
     await handlePurge(user);
+  } else if (textLower === '/digest') {
+    await handleTestDigest(user);
   }
 }
 
@@ -174,8 +176,53 @@ async function handleStats(user: User): Promise<void> {
 async function handlePurge(user: User): Promise<void> {
   try {
     const count = await expirePastEvents();
-    await sendText(user.phone, `🗑️ Purged ${count} expired events.`);
+    await sendText(user.phone, `Purged ${count} expired events.`);
   } catch (error: any) {
-    await sendText(user.phone, `❌ Purge error: ${error.message}`);
+    await sendText(user.phone, `Purge error: ${error.message}`);
+  }
+}
+
+async function handleTestDigest(user: User): Promise<void> {
+  try {
+    const { formatDigest } = await import('../utils/formatter.js');
+    const { queryEvents: dbQueryEvents, getUnbroadcastedEvents } = await import('../db/supabase.js');
+    const { getTodayIST } = await import('../utils/dateParser.js');
+
+    const today = getTodayIST();
+
+    const [todayEvents, unbroadcasted] = await Promise.all([
+      dbQueryEvents({ dateStart: today, dateEnd: today, status: 'confirmed' }),
+      getUnbroadcastedEvents(),
+    ]);
+
+    const allEvents = [...todayEvents, ...unbroadcasted.filter(e => e.date !== today)];
+    // Dedupe by ID
+    const seen = new Set<string>();
+    const unique = allEvents.filter(e => {
+      if (seen.has(e.id)) return false;
+      seen.add(e.id);
+      return true;
+    });
+
+    if (unique.length === 0) {
+      await sendText(user.phone, '*Digest Test*\n\nNo events to include. Post some events first.');
+      return;
+    }
+
+    const morningDigest = formatDigest(unique, 'morning');
+    const eveningDigest = formatDigest(
+      unique.filter(e => {
+        if (!e.time) return true;
+        const hour = parseInt(e.time.split(':')[0]);
+        return hour >= 17;
+      }),
+      'evening'
+    );
+
+    await sendText(user.phone, `*-- MORNING DIGEST PREVIEW --*\n\n${morningDigest}`);
+    await new Promise(r => setTimeout(r, 500));
+    await sendText(user.phone, `*-- EVENING DIGEST PREVIEW --*\n\n${eveningDigest}`);
+  } catch (error: any) {
+    await sendText(user.phone, `Digest test error: ${error.message}`);
   }
 }

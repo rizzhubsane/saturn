@@ -48,6 +48,9 @@ export interface Event {
   venue_normalized: string | null;
   categories: string[];
   registration_link: string | null;
+  highlights: string[];
+  links: EventLink[];
+  event_type: string;
   poster_url: string | null;
   poster_ocr_text: string | null;
   status: 'pending' | 'confirmed' | 'cancelled' | 'expired';
@@ -98,6 +101,20 @@ export interface ConversationState {
   data: Record<string, any>;
   expires_at: string;
   updated_at: string;
+}
+
+export interface EventLink {
+  url: string;
+  label: string; // "register", "website", "instagram", "form", "info", "other"
+}
+
+export interface MessageHistory {
+  id: string;
+  user_id: string;
+  direction: 'in' | 'out';
+  content: string;
+  message_type: string;
+  created_at: string;
 }
 
 // ============================================
@@ -166,6 +183,9 @@ export interface ParsedEvent {
   venue: string | null;
   venue_raw: string | null;
   categories: string[];
+  highlights: string[];
+  links: EventLink[];
+  event_type: string;
   registration_link: string | null;
   is_all_day: boolean;
   confidence: number;

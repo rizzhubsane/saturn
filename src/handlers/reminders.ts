@@ -1,5 +1,5 @@
 import type { User } from '../types/index.js';
-import { sendText } from '../services/whatsapp.js';
+import { sendText, sendButtons } from '../services/whatsapp.js';
 import { createReminder, getEventById, getUserReminders } from '../db/supabase.js';
 import { formatHumanDate, formatHumanTime } from '../utils/dateParser.js';
 
@@ -74,11 +74,16 @@ export async function handleReminder(user: User, eventIdPrefix: string): Promise
 
     await sendText(user.phone,
       `Reminder & Bookmark set!\n\n` +
-      `I'll ping you ${timeUntil} before *[${event.title}]*.\n` +
-      `Date: ${formatHumanDate(event.date)}${event.time ? ` · Time: ${formatHumanTime(event.time)}` : ''}\n` +
-      `Location: ${event.venue || 'TBD'}\n\n` +
+      `I'll ping you ${timeUntil} before *${event.title}*.\n` +
+      `${formatHumanDate(event.date)}${event.time ? ` · ${formatHumanTime(event.time)}` : ''}\n` +
+      `${event.venue || 'TBD'}\n\n` +
       `Add to Google Calendar:\n${gcalLink}`
     );
+
+    await sendButtons(user.phone, 'What next?', [
+      { type: 'reply', reply: { id: 'action_browse_more', title: 'Browse More' } },
+      { type: 'reply', reply: { id: 'action_my_saved', title: 'My Saved' } },
+    ]);
 
   } catch (error: any) {
     if (error.message.includes('duplicate') || error.message.includes('unique')) {

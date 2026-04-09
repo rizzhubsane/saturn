@@ -1,59 +1,89 @@
-import type { Event, Club, ClubWithStats } from '../types/index.js';
+import type { Event, Club, ClubWithStats, EventLink } from '../types/index.js';
 import { formatHumanDate, formatHumanTime } from './dateParser.js';
 import categoriesConfig from '../config/categories.json' with { type: "json" };
 
 const categoryMap = new Map(categoriesConfig.categories.map(c => [c.slug, c]));
 
 // ============================================
-// EVENT FORMATTING
+// EVENT FORMATTING (V2 — compact, highlights-first)
 // ============================================
 
 /**
  * Format a single event as a rich WhatsApp card.
+ *
+ * Layout:
+ *   Title | Top Highlight
+ *   Date · Time | Venue | Club
+ *   Description
+ *   Links
  */
 export function formatEventCard(event: Event, club?: Club | null): string {
+  const lines: string[] = [];
+  const clubName = club?.name || (event as any).club?.name || '';
+
+  // Line 1: Title | Highlight
+  const highlightStr = (event.highlights || []).slice(0, 2).join(' · ');
+  if (highlightStr) {
+    lines.push(`*${event.title}* | ${highlightStr}`);
+  } else {
+    lines.push(`*${event.title}*`);
+  }
+
+  // Line 2: Date · Time | Venue | Club
+  const parts: string[] = [];
+  const dateTime = formatHumanDate(event.date) + (event.time ? ` · ${formatHumanTime(event.time)}` : '');
+  parts.push(dateTime);
+  if (event.venue_normalized || event.venue) {
+    parts.push(event.venue_normalized || event.venue!);
+  }
+  if (clubName) {
+    parts.push(clubName);
+  }
+  lines.push(parts.join(' | '));
+
+  // Category tags (compact)
   const categoryTags = event.categories
     .map(slug => {
       const cat = categoryMap.get(slug);
-      return cat ? `[${cat.emoji || ''} ${cat.label}]` : `#${slug}`;
+      return cat ? `${cat.emoji || ''}${cat.label}` : `#${slug}`;
     })
-    .join(' ');
-
-  const lines: string[] = [];
-
-  lines.push(`*[${event.title}]*`);
-  lines.push(`📅 ${formatHumanDate(event.date)}${event.time ? ` · ⏰ ${formatHumanTime(event.time)}` : ''}`);
-  
-  if (event.venue) {
-    lines.push(`📍 ${event.venue_normalized || event.venue}`);
-  }
-
+    .join('  ');
   if (categoryTags) {
-    lines.push(`🏷️ ${categoryTags}`);
+    lines.push(categoryTags);
   }
 
   lines.push('');
 
+  // Description
   if (event.description) {
     lines.push(event.description);
     lines.push('');
   }
 
-  if (event.registration_link) {
-    lines.push(`🔗 Register: ${event.registration_link}`);
-  }
-
-  if (club) {
-    lines.push(`🏛️ Organised by: ${club.name}`);
-  } else if ((event as any).club) {
-    lines.push(`🏛️ Organised by: ${(event as any).club.name}`);
+  // Links (all of them)
+  const links = event.links || [];
+  if (links.length > 0) {
+    for (const link of links) {
+      const label = link.label === 'register' ? 'Register' :
+                    link.label === 'form' ? 'Form' :
+                    link.label === 'website' ? 'Website' :
+                    link.label === 'instagram' ? 'Instagram' :
+                    link.label === 'info' ? 'Info' : 'Link';
+      lines.push(`${label}: ${link.url}`);
+    }
+  } else if (event.registration_link) {
+    lines.push(`Register: ${event.registration_link}`);
   }
 
   return lines.join('\n');
 }
 
 /**
- * Format multiple events as a numbered list (compact).
+ * Format multiple events as a numbered list (compact, highlights visible).
+ *
+ * Layout per item:
+ *   1. Title | Top Highlight
+ *      Date · Time | Venue | Club
  */
 export function formatEventList(events: Event[], title: string): string {
   if (events.length === 0) {
@@ -61,27 +91,34 @@ export function formatEventList(events: Event[], title: string): string {
   }
 
   const lines: string[] = [];
-  lines.push(`*${title}* — ${events.length} found\n`);
+  lines.push(`*${title}* -- ${events.length} found\n`);
 
   events.slice(0, 10).forEach((event, i) => {
     const timeStr = event.time ? formatHumanTime(event.time) : 'TBD';
     const clubName = (event as any).club?.name || '';
     const venue = event.venue_normalized || event.venue || '';
 
-    // We can use fun numbering if desired, but 1. is fine
-    lines.push(`${i + 1}. *[${event.title}]*`);
-    lines.push(`   📅 ${formatHumanDate(event.date)} · ⏰ ${timeStr}${venue ? `\n   📍 ${venue}` : ''}`);
-    if (clubName) {
-      lines.push(`   🏛️ ${clubName}`);
-    }
+    // Line 1: number. Title | Highlight
+    const highlight = (event.highlights || []).slice(0, 1).join('');
+    const titleLine = highlight
+      ? `${i + 1}. *${event.title}* | ${highlight}`
+      : `${i + 1}. *${event.title}*`;
+    lines.push(titleLine);
+
+    // Line 2: Date · Time | Venue | Club
+    const meta: string[] = [`${formatHumanDate(event.date)} · ${timeStr}`];
+    if (venue) meta.push(venue);
+    if (clubName) meta.push(clubName);
+    lines.push(`   ${meta.join(' | ')}`);
+
     lines.push('');
   });
 
   if (events.length > 10) {
-    lines.push(`... and ${events.length - 10} more. Ask me to search specifically.\n`);
+    lines.push(`...and ${events.length - 10} more. Ask me to search specifically.\n`);
   }
 
-  lines.push('💡 _Reply with the event number (e.g. 1) for details, or to RSVP/Remind!_');
+  lines.push('_Reply with the number (e.g. 1) for details + RSVP_');
 
   return lines.join('\n');
 }
@@ -92,15 +129,31 @@ export function formatEventList(events: Event[], title: string): string {
 export function formatParsedPreview(parsed: any): string {
   const lines: string[] = [];
 
-  lines.push('*[Parsed Event Details]*\n');
-  lines.push(`Title: *${parsed.title}*`);
-  lines.push(`Date: ${formatHumanDate(parsed.date)}${parsed.time ? ` · Time: ${parsed.time}` : ''}`);
+  lines.push('*Parsed Event Preview*\n');
 
-  if (parsed.venue) {
-    lines.push(`Location: ${parsed.venue}`);
+  // Title + highlight in one glance
+  const highlightStr = (parsed.highlights || []).slice(0, 2).join(' · ');
+  if (highlightStr) {
+    lines.push(`*${parsed.title}* | ${highlightStr}`);
+  } else {
+    lines.push(`*${parsed.title}*`);
   }
 
-  if (parsed.categories?.length > 0) {
+  // Date/Time
+  lines.push(`${formatHumanDate(parsed.date)}${parsed.time ? ` · ${parsed.time}` : ''}`);
+
+  if (parsed.venue) {
+    lines.push(`Venue: ${parsed.venue}`);
+  }
+
+  // Type + Categories
+  if (parsed.event_type && parsed.event_type !== 'other') {
+    const cats = (parsed.categories || []).map((slug: string) => {
+      const cat = categoryMap.get(slug);
+      return cat ? cat.label : slug;
+    }).join(' · ');
+    lines.push(`Type: ${parsed.event_type}${cats ? ` | ${cats}` : ''}`);
+  } else if (parsed.categories?.length > 0) {
     const cats = parsed.categories.map((slug: string) => {
       const cat = categoryMap.get(slug);
       return cat ? cat.label : slug;
@@ -109,11 +162,18 @@ export function formatParsedPreview(parsed: any): string {
   }
 
   if (parsed.description) {
-    lines.push(`\nDescription:\n${parsed.description}`);
+    lines.push(`\n${parsed.description}`);
   }
 
-  if (parsed.registration_link) {
-    lines.push(`\nLinks: ${parsed.registration_link}`);
+  // Links
+  const links = parsed.links || [];
+  if (links.length > 0) {
+    lines.push('');
+    for (const link of links) {
+      lines.push(`${link.label}: ${link.url}`);
+    }
+  } else if (parsed.registration_link) {
+    lines.push(`\nLink: ${parsed.registration_link}`);
   }
 
   lines.push(`\nConfidence: ${Math.round((parsed.confidence || 0) * 100)}%`);
@@ -126,14 +186,11 @@ export function formatParsedPreview(parsed: any): string {
 // CLUB FORMATTING
 // ============================================
 
-/**
- * Format a full club profile card.
- */
 export function formatClubProfile(club: ClubWithStats): string {
   const cat = categoryMap.get(club.category);
   const lines: string[] = [];
 
-  lines.push(`*[${club.name}]*`);
+  lines.push(`*${club.name}*`);
   if (cat) lines.push(cat.label);
   lines.push('');
 
@@ -147,20 +204,18 @@ export function formatClubProfile(club: ClubWithStats): string {
     lines.push('');
   }
 
-  // --- Analytics Dashboard ---
-  lines.push('📊 *Engagement Dashboard* 📊');
-  
+  lines.push('*Engagement*');
+
   if (club.total_events > 0) {
     const avgViews = Math.round(club.total_views / club.total_events);
-    lines.push(`· Total Reach: ${club.total_views} views`);
-    lines.push(`· Average Rate: ~${avgViews} views/event`);
-    lines.push(`· Active Intent: ${club.total_saves} Bookmarks | ${club.total_reminders} RSVPs`);
+    lines.push(`Reach: ${club.total_views} views (~${avgViews}/event)`);
+    lines.push(`Intent: ${club.total_saves} saves | ${club.total_reminders} RSVPs`);
   } else {
-    lines.push('· No events posted yet.');
+    lines.push('No events posted yet.');
   }
 
-  lines.push(`\n📈 *Status*: ${club.total_events} historic events | ${club.upcoming_events} upcoming`);
-  lines.push(`👨‍💻 *Team*: ${club.power_user_count} admins`);
+  lines.push(`\n${club.total_events} total events | ${club.upcoming_events} upcoming`);
+  lines.push(`Team: ${club.power_user_count} members`);
 
   if (club.founded_year) {
     lines.push(`Founded: ${club.founded_year}`);
@@ -180,12 +235,9 @@ export function formatClubProfile(club: ClubWithStats): string {
   return lines.join('\n');
 }
 
-/**
- * Format club list grouped by category.
- */
 export function formatClubList(clubs: Club[]): string {
   if (clubs.length === 0) {
-    return '*[Clubs on Saturn]*\n\nNo clubs registered yet.';
+    return '*Clubs on Saturn*\n\nNo clubs registered yet.';
   }
 
   const grouped = new Map<string, Club[]>();
@@ -196,13 +248,13 @@ export function formatClubList(clubs: Club[]): string {
   }
 
   const lines: string[] = [];
-  lines.push(`*[Clubs on Saturn]* — ${clubs.length} registered\n`);
+  lines.push(`*Clubs on Saturn* -- ${clubs.length} registered\n`);
 
   for (const [category, categoryClubs] of grouped) {
     const cat = categoryMap.get(category);
-    lines.push(`*[${cat?.label || category}]*`);
+    lines.push(`*${cat?.label || category}*`);
     for (const club of categoryClubs) {
-      lines.push(`- ${club.name}${club.tagline ? ` — _${club.tagline}_` : ''}`);
+      lines.push(`- ${club.name}${club.tagline ? ` -- _${club.tagline}_` : ''}`);
     }
     lines.push('');
   }
@@ -213,105 +265,176 @@ export function formatClubList(clubs: Club[]): string {
 }
 
 // ============================================
-// DIGEST FORMATTING
+// DIGEST FORMATTING (V2 — time-of-day grouped, highlights visible)
 // ============================================
 
-/**
- * Format community broadcast digest.
- */
 export function formatDigest(events: Event[], digestType: 'morning' | 'evening'): string {
   const dateStr = new Date().toLocaleDateString('en-IN', {
+    weekday: 'long',
     day: 'numeric',
     month: 'long',
-    year: 'numeric',
     timeZone: 'Asia/Kolkata',
   });
 
   const lines: string[] = [];
 
   if (digestType === 'morning') {
-    lines.push(`🌅 *Morning Events Update* — ${dateStr}\n`);
+    lines.push(`*Saturn Daily* | ${dateStr}\n`);
   } else {
-    lines.push(`🌙 *Evening Events Update* — ${dateStr}\n`);
+    lines.push(`*Tonight on Campus* | ${dateStr}\n`);
   }
 
-  events.slice(0, 10).forEach(event => {
-    const timeStr = event.time ? formatHumanTime(event.time) : 'TBD';
-    const clubName = (event as any).club?.name || '';
-    const venue = event.venue_normalized || event.venue || '';
+  // Group events by time-of-day
+  const grouped = groupByTimeOfDay(events);
 
-    const urlEncodedTitle = encodeURIComponent(event.title);
-    const waLink = `wa.me/917065526258?text=tell+me+about+${urlEncodedTitle}`;
+  for (const [period, periodEvents] of grouped) {
+    if (periodEvents.length === 0) continue;
 
-    lines.push(`🎯 *${event.title}*`);
-    lines.push(`   Time: ${timeStr}${venue ? `\n   📍 ${venue}` : ''}`);
-    if (clubName) lines.push(`   By: ${clubName}`);
-    lines.push(`   🔗 Info: ${waLink}`);
-    lines.push('');
-  });
+    lines.push(`-- ${period.toUpperCase()} --\n`);
 
-  if (events.length > 10) {
-    lines.push(`${events.length - 10} more events — talk to me to see all!`);
+    for (const event of periodEvents) {
+      const timeStr = event.time ? formatHumanTime(event.time) : 'TBD';
+      const clubName = (event as any).club?.name || '';
+      const venue = event.venue_normalized || event.venue || '';
+      const highlight = (event.highlights || []).slice(0, 1).join('');
+
+      // Compact: Title | Highlight
+      if (highlight) {
+        lines.push(`*${event.title}* | ${highlight}`);
+      } else {
+        lines.push(`*${event.title}*`);
+      }
+
+      // Time | Venue | Club
+      const meta: string[] = [timeStr];
+      if (venue) meta.push(venue);
+      if (clubName) meta.push(clubName);
+      lines.push(meta.join(' | '));
+      lines.push('');
+    }
   }
-  
-  lines.push('\n💬 _Ask me for reminders or search events!_');
+
+  lines.push(`${events.length} event${events.length !== 1 ? 's' : ''} today. DM me for details + RSVP`);
 
   return lines.join('\n');
 }
 
+function groupByTimeOfDay(events: Event[]): Map<string, Event[]> {
+  const groups = new Map<string, Event[]>([
+    ['morning', []],
+    ['afternoon', []],
+    ['evening', []],
+    ['all day', []],
+  ]);
+
+  for (const event of events.slice(0, 15)) {
+    if (!event.time) {
+      groups.get('all day')!.push(event);
+      continue;
+    }
+    const hour = parseInt(event.time.split(':')[0]);
+    if (hour < 12) {
+      groups.get('morning')!.push(event);
+    } else if (hour < 17) {
+      groups.get('afternoon')!.push(event);
+    } else {
+      groups.get('evening')!.push(event);
+    }
+  }
+
+  return groups;
+}
+
 // ============================================
-// HELP FORMATTING
+// HELP FORMATTING (V2 — fully differentiated per role)
 // ============================================
 
-/**
- * Format role-aware help message.
- */
 export function formatHelp(role: string): string {
-  const lines: string[] = [];
-
-  lines.push('*[Saturn]* — IIT Delhi Campus Assistant\n');
-  lines.push('I understand plain English — just ask me! For example:');
-  lines.push('');
-  lines.push('💬 *Discovering Events*');
-  lines.push('- "What\'s happening today?"');
-  lines.push('- "Any tech talks this week?"');
-  lines.push('- "Show me weekend sports events"');
-  lines.push('- "Are there cultural events?"');
-  lines.push('');
-  lines.push('🏛️ *Discovering Clubs*');
-  lines.push('- "What clubs are there at IIT Delhi?"');
-  lines.push('- "Is there a coding club?"');
-  lines.push('- /clubs — browse all clubs');
-  lines.push('');
-  lines.push('🔖 *Your Activity*');
-  lines.push('- /saved — events you bookmarked');
-  lines.push('- /today, /tomorrow, /week — quick filters');
-  lines.push('');
-
-  if (['power_user', 'admin', 'god'].includes(role)) {
-    lines.push('━━━━━━━━━━━━━━━');
-    lines.push('🛠️ *Club Team Commands*');
-    lines.push('- /post — publish an event (or forward a poster + /post)');
-    lines.push('- /myevents — your posted events');
-    lines.push('- /clubinfo — your club dashboard & analytics');
-    lines.push('');
+  switch (role) {
+    case 'god':
+      return formatGodHelp();
+    case 'admin':
+      return formatAdminHelp();
+    case 'power_user':
+      return formatPowerUserHelp();
+    default:
+      return formatStudentHelp();
   }
-  if (['admin', 'god'].includes(role)) {
-    lines.push('⚙️ *Admin Commands*');
-    lines.push('- /adduser <phone>');
-    lines.push('- /removeuser <phone>');
-    lines.push('- /editclub');
-    lines.push('- /analytics');
-    lines.push('');
-  }
-  if (role === 'god') {
-    lines.push('👁️ *God Mode*');
-    lines.push('- /addorg <name>');
-    lines.push('- /promote <phone> admin <club>');
-    lines.push('- /broadcast <msg>');
-    lines.push('- /stats');
-    lines.push('- /purge');
-  }
+}
 
-  return lines.join('\n');
+function formatStudentHelp(): string {
+  return [
+    '*Saturn* -- Your Campus Event Assistant\n',
+    'Just ask me anything in plain English:\n',
+    '"What\'s happening today?"',
+    '"Any hackathons this week?"',
+    '"Show me cultural events"',
+    '"Is there a coding club?"\n',
+    '*Quick Filters*',
+    '/today /tomorrow /week /weekend\n',
+    '*Your Stuff*',
+    '/saved -- your bookmarked events',
+    '/mysubs -- your notification preferences\n',
+    '*Discover*',
+    '/clubs -- browse all campus clubs',
+    '/club <name> -- see a club\'s profile\n',
+    '_Tip: After I show events, reply with the number (e.g. 1) to see details and RSVP._',
+  ].join('\n');
+}
+
+function formatPowerUserHelp(): string {
+  return [
+    '*Saturn* -- Club Team Dashboard\n',
+    '*Post Events*',
+    '/post -- publish an event (text + poster)',
+    '/myevents -- your posted events\n',
+    '*Your Club*',
+    '/clubinfo -- club profile + analytics',
+    '/editclub -- update club details\n',
+    '*Discover*',
+    '/today /tomorrow /week -- browse events',
+    '/clubs -- see all clubs',
+    '/saved -- your bookmarked events\n',
+    '_Just ask me anything in plain English too._',
+  ].join('\n');
+}
+
+function formatAdminHelp(): string {
+  return [
+    '*Saturn* -- Club Admin Panel\n',
+    '*Manage Team*',
+    '/adduser <phone> -- add a team member',
+    '/removeuser <phone> -- remove a member',
+    '/orginfo -- team overview\n',
+    '*Post & Track*',
+    '/post -- publish an event',
+    '/myevents -- your posted events',
+    '/analytics -- engagement stats\n',
+    '*Club Profile*',
+    '/clubinfo -- view your club dashboard',
+    '/editclub -- update club details\n',
+    '*Discover*',
+    '/today /tomorrow /week -- browse events',
+    '/clubs -- see all clubs',
+    '/saved -- your bookmarks\n',
+    '_Share your invite code with team members so they can /join._',
+  ].join('\n');
+}
+
+function formatGodHelp(): string {
+  return [
+    '*Saturn* -- God Mode\n',
+    '*System*',
+    '/stats -- system-wide stats',
+    '/broadcast <msg> -- message all users',
+    '/digest -- test community digest now',
+    '/purge -- cleanup\n',
+    '*Manage*',
+    '/addorg <name> -- register a club',
+    '/promote <phone> admin <club> -- promote user\n',
+    '*Regular*',
+    '/post /myevents /clubinfo /editclub',
+    '/adduser /removeuser /orginfo /analytics',
+    '/today /tomorrow /week /clubs /saved',
+  ].join('\n');
 }

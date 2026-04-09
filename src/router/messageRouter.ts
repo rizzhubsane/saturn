@@ -10,7 +10,7 @@ import { handleOnboarding, handleOnboardingReply } from '../handlers/onboarding.
 import { handleRegisterClub } from '../handlers/registerClub.js';
 import { handleJoinClub } from '../handlers/joinClub.js';
 import { handlePostEvent, handlePostContent } from '../handlers/postEvent.js';
-import { handleConfirmEvent } from '../handlers/confirmEvent.js';
+import { handleConfirmEvent, handleEditFieldSelection } from '../handlers/confirmEvent.js';
 import { handleQueryEvents, handleEventDetail } from '../handlers/queryEvents.js';
 import { handleReminder } from '../handlers/reminders.js';
 import { handleSavedEvents, handleSaveEvent, handleUnsaveEvent } from '../handlers/savedEvents.js';
@@ -156,7 +156,7 @@ export async function routeMessage(user: User, message: WhatsAppMessage): Promis
 
     // God commands
     if (textLower.startsWith('/addorg ') || textLower.startsWith('/promote ') || 
-        textLower.startsWith('/broadcast ') || textLower === '/stats' || textLower === '/purge') {
+        textLower.startsWith('/broadcast ') || textLower === '/stats' || textLower === '/purge' || textLower === '/digest') {
       if (user.role !== 'god') {
         return await sendText(user.phone, '❌ This command is restricted.');
       }
@@ -290,6 +290,36 @@ async function handleInteractiveReply(user: User, message: WhatsAppMessage): Pro
   }
   if (replyId === 'onboarding_done') {
     return await handleOnboardingReply(user, message);
+  }
+
+  // Event field edit selections
+  if (replyId.startsWith('editfield_')) {
+    const state = await getConversationState(user.id);
+    if (state) {
+      return await handleEditFieldSelection(user, replyId, state);
+    }
+  }
+
+  // Post another event
+  if (replyId === 'action_post_another') {
+    return await handlePostEvent(user, { ...message, text: { body: '/post' } } as WhatsAppMessage);
+  }
+
+  // Quick action buttons (browse more, my saved)
+  if (replyId === 'action_browse_more') {
+    return await handleQueryEvents(user, 'this_week');
+  }
+  if (replyId === 'action_my_saved') {
+    return await handleSavedEvents(user);
+  }
+  if (replyId === 'action_today') {
+    return await handleQueryEvents(user, 'today');
+  }
+  if (replyId === 'action_this_week') {
+    return await handleQueryEvents(user, 'this_week');
+  }
+  if (replyId === 'action_clubs') {
+    return await handleClubDiscovery(user);
   }
 
   // Club edit fields

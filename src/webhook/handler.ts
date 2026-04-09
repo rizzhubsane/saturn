@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { WhatsAppMessage } from '../types/index.js';
-import { getOrCreateUser } from '../db/supabase.js';
+import { getOrCreateUser, logMessage } from '../db/supabase.js';
 import { routeMessage } from '../router/messageRouter.js';
 import { markAsRead } from '../services/whatsapp.js';
 
@@ -72,6 +72,10 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
 
     // Upsert user in DB
     const user = await getOrCreateUser(message.from, message.profileName || null);
+
+    // Log incoming message for conversation memory
+    const msgContent = message.text?.body || message.image?.caption || `[${message.type}]`;
+    await logMessage(user.id, 'in', msgContent, message.type).catch(() => {});
 
     // Route to the correct handler
     await routeMessage(user, message);

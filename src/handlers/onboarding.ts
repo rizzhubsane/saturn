@@ -1,54 +1,103 @@
 import type { User, WhatsAppMessage } from '../types/index.js';
-import { sendText, sendList } from '../services/whatsapp.js';
+import { sendText, sendButtons } from '../services/whatsapp.js';
 import { updateUser, setConversationState, clearConversationState } from '../db/supabase.js';
 import { searchByCommand } from '../services/eventSearch.js';
 import { formatEventList } from '../utils/formatter.js';
 import categoriesConfig from '../config/categories.json' with { type: "json" };
 
+const BATCHES = [
+  [
+    { slug: 'tech', label: 'Tech & Coding' },
+    { slug: 'cultural', label: 'Cultural' },
+    { slug: 'sports', label: 'Sports' },
+  ],
+  [
+    { slug: 'career', label: 'Career' },
+    { slug: 'startup', label: 'Startups' },
+    { slug: 'academic', label: 'Academic' },
+  ],
+  [
+    { slug: 'social', label: 'Social & Chill' },
+    { slug: 'workshop', label: 'Workshops' },
+    { slug: 'competition', label: 'Competitions' },
+  ],
+];
+
 /**
- * Handle first-time user onboarding.
+ * Handle first-time user onboarding -- short, fast, button-driven.
  */
-export async function handleOnboarding(user: User, message: WhatsAppMessage): Promise<void> {
-  // Set conversation state
-  await setConversationState(user.id, 'onboarding_interests', { selectedInterests: [] });
+export async function handleOnboarding(user: User, _message: WhatsAppMessage): Promise<void> {
+  await setConversationState(user.id, 'onboarding_interests', {
+    selectedInterests: [],
+    batch: 0,
+  });
 
-  const welcome = `Hey${user.name ? ` ${user.name}` : ''}! I'm Saturn, your IIT Delhi event discovery assistant.\n\nI keep track of all club events happening on campus. You don't need to learn any commands—just ask me what you're looking for! For example: "any tech talks today?" or "show me weekend sports events."\n\nFirst, let me know what you're generally into:`;
+  const name = user.name ? ` ${user.name.split(' ')[0]}` : '';
 
-  const half = Math.ceil(categoriesConfig.categories.length / 2);
-  const part1 = categoriesConfig.categories.slice(0, half);
-  const part2 = categoriesConfig.categories.slice(half);
-
-  const sections = [
-    {
-      title: 'Categories (Part 1)',
-      rows: part1.map(c => ({ id: `interest_${c.slug}`, title: c.label.substring(0, 24) }))
-    },
-    {
-      title: 'Categories (Part 2)',
-      rows: part2.map(c => ({ id: `interest_${c.slug}`, title: c.label.substring(0, 24) }))
-    },
-    {
-      title: 'Finish',
-      rows: [{ id: 'onboarding_done', title: 'Done / Skip' }]
-    }
-  ];
-
-  await sendList(
-    user.phone,
-    welcome,
-    'Select Interests',
-    sections
+  await sendText(user.phone,
+    `Hey${name}! I'm Saturn -- I track every club event at IIT Delhi.\n\n` +
+    `Ask me anything like "what's tonight?" and I'll find it.\n\n` +
+    `Quick setup -- what are you into?`
   );
+
+  await new Promise(r => setTimeout(r, 400));
+  await sendInterestBatch(user, 0);
+}
+
+/**
+ * Send a batch of 3 interest buttons.
+ */
+async function sendInterestBatch(user: User, batchIndex: number): Promise<void> {
+  if (batchIndex >= BATCHES.length) {
+    await finishOnboarding(user);
+    return;
+  }
+
+  const batch = BATCHES[batchIndex];
+  const buttons = batch.map(cat => ({
+    type: 'reply' as const,
+    reply: { id: `interest_${cat.slug}`, title: cat.label },
+  }));
+
+  const prompt = batchIndex === 0
+    ? 'Tap any that interest you:'
+    : 'More options:';
+
+  await sendButtons(user.phone, prompt, buttons);
 }
 
 /**
  * Handle interest selection during onboarding.
  */
 export async function handleOnboardingReply(user: User, message: WhatsAppMessage): Promise<void> {
-  const replyId = message.interactive?.list_reply?.id || message.interactive?.button_reply?.id || '';
+  const replyId = message.interactive?.button_reply?.id || message.interactive?.list_reply?.id || '';
+  const text = message.text?.body?.trim().toLowerCase() || '';
 
-  if (replyId === 'onboarding_done' || !replyId.startsWith('interest_')) {
-    // Finish onboarding
+  // "done", "skip", or non-interest message = finish
+  if (replyId === 'onboarding_done' || text === 'skip' || text === 'done') {
+    await finishOnboarding(user);
+    return;
+  }
+
+  // "next batch" button
+  if (replyId === 'onboarding_next') {
+    const { getConversationState } = await import('../db/supabase.js');
+    const state = await getConversationState(user.id);
+    const currentBatch = (state?.data?.batch ?? 0) + 1;
+    await setConversationState(user.id, 'onboarding_interests', {
+      selectedInterests: state?.data?.selectedInterests || user.interests || [],
+      batch: currentBatch,
+    });
+    if (currentBatch >= BATCHES.length) {
+      await finishOnboarding(user);
+    } else {
+      await sendInterestBatch(user, currentBatch);
+    }
+    return;
+  }
+
+  if (!replyId.startsWith('interest_')) {
+    // User typed something random -- finish onboarding, route their message
     await finishOnboarding(user);
     return;
   }
@@ -61,39 +110,42 @@ export async function handleOnboardingReply(user: User, message: WhatsAppMessage
     currentInterests.push(category);
     await updateUser(user.id, { interests: currentInterests } as any);
     user.interests = currentInterests;
+  }
 
-    const cat = categoriesConfig.categories.find(c => c.slug === category);
-    
-    const half = Math.ceil(categoriesConfig.categories.length / 2);
-    const sections = [
-      {
-        title: 'More Categories (1)',
-        rows: categoriesConfig.categories.slice(0, half).map(c => ({ id: `interest_${c.slug}`, title: c.label.substring(0, 24) }))
-      },
-      {
-        title: 'More Categories (2)',
-        rows: categoriesConfig.categories.slice(half).map(c => ({ id: `interest_${c.slug}`, title: c.label.substring(0, 24) }))
-      },
-      {
-        title: 'Finish',
-        rows: [{ id: 'onboarding_done', title: 'I\'m Done' }]
-      }
-    ];
+  const cat = categoriesConfig.categories.find(c => c.slug === category);
+  const catLabel = cat?.label || category;
 
-    await sendList(
+  // Find which batch this was in, then show next batch or finish
+  const { getConversationState } = await import('../db/supabase.js');
+  const state = await getConversationState(user.id);
+  const currentBatch = state?.data?.batch ?? 0;
+  const nextBatch = currentBatch + 1;
+
+  await setConversationState(user.id, 'onboarding_interests', {
+    selectedInterests: currentInterests,
+    batch: nextBatch,
+  });
+
+  if (nextBatch >= BATCHES.length) {
+    // Show one final prompt
+    await sendButtons(
       user.phone,
-      `Added ${cat?.label || category}. Select more, or tap Done.`,
-      'Options',
-      sections
+      `Added ${catLabel}! You're all set.`,
+      [
+        { type: 'reply', reply: { id: 'onboarding_done', title: 'Show me events!' } },
+        { type: 'reply', reply: { id: 'onboarding_next', title: 'Pick more' } },
+      ]
     );
+    // Re-send the full batch list for "pick more"
   } else {
-    // already selected
-    await sendList(user.phone, `You already selected ${category}. Tap Done to finish.`, 'Options', [{ title: 'Finish', rows: [{ id: 'onboarding_done', title: 'Done / Finish' }] }]);
+    await sendText(user.phone, `Added ${catLabel}!`);
+    await new Promise(r => setTimeout(r, 300));
+    await sendInterestBatch(user, nextBatch);
   }
 }
 
 /**
- * Finish onboarding and show relevant events.
+ * Finish onboarding and immediately show relevant events.
  */
 async function finishOnboarding(user: User): Promise<void> {
   await updateUser(user.id, { onboarded: true } as any);
@@ -105,24 +157,30 @@ async function finishOnboarding(user: User): Promise<void> {
   if (interests.length > 0) {
     const labels = interests
       .map(slug => categoriesConfig.categories.find(c => c.slug === slug)?.label || slug)
+      .slice(0, 4)
       .join(', ');
-    greeting += ` I'll keep an eye on: ${labels}`;
+    greeting += ` Watching: ${labels}.`;
   }
 
   await sendText(user.phone, greeting);
+  await new Promise(r => setTimeout(r, 400));
 
-  // Add a conversational pause
-  await new Promise(resolve => setTimeout(resolve, 800));
-
-  // Show upcoming events
-  const events = await searchByCommand('this_week', 
+  // Show upcoming events matching interests
+  const events = await searchByCommand('this_week',
     interests.length > 0 ? { categories: interests } : {}
   );
 
   if (events.length > 0) {
-    await sendText(user.phone, formatEventList(events, 'Here\'s what\'s happening soon'));
+    await sendText(user.phone, formatEventList(events.slice(0, 5), 'Coming up for you'));
+
+    const { setConversationState } = await import('../db/supabase.js');
+    await setConversationState(user.id, 'viewing_search_results', {
+      events: events.slice(0, 5).map(e => e.id),
+    }, 60);
   } else {
-    await sendText(user.phone, 'There are no events matching your interests this week. I\'ll notify you when new ones are posted!\n\nJust message me anytime if you want to search.');
+    await sendButtons(user.phone, 'No matching events this week yet. I\'ll notify you when something comes up!', [
+      { type: 'reply', reply: { id: 'action_clubs', title: 'Browse Clubs' } },
+      { type: 'reply', reply: { id: 'action_this_week', title: 'All This Week' } },
+    ]);
   }
 }
-
