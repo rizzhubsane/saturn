@@ -32,6 +32,11 @@ const tipCatalog = {
     'Tip: Better highlights in your event card usually increase reminder conversions.',
     'Tip: Use `/myevents` after posting to quickly verify what users will see.',
   ],
+  feedback: [
+    'Tip: Use `/feedback` anytime something feels confusing—we attach recent chat for context.',
+    'Tip: After a bad answer, `/feedback` helps us see what went wrong in your thread.',
+    'Tip: Short feedback with `/feedback` is enough; you can also add detail on the next line.',
+  ],
   general: [
     'Tip: Start with `/help` to unlock shortcuts you may not be using yet.',
     'Tip: You can mix commands and natural language; Saturn supports both.',
@@ -49,6 +54,7 @@ export function buildMessageWithTip(phone: string, text: string): string {
 
 function inferCategory(text: string): TipCategory {
   const lower = text.toLowerCase();
+  if (lower.includes('/feedback') || lower.includes('feedback')) return 'feedback';
   if (lower.includes('digest') || lower.includes('daily')) return 'digest';
   if (lower.includes('/clubs') || lower.includes('club')) return 'clubs';
   if (lower.includes('/saved') || lower.includes('bookmark') || lower.includes('saved')) return 'saved';

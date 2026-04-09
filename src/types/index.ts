@@ -117,6 +117,14 @@ export interface MessageHistory {
   created_at: string;
 }
 
+export interface UserFeedback {
+  id: string;
+  user_id: string;
+  body: string;
+  context_snapshot: string;
+  created_at: string;
+}
+
 // ============================================
 // WHATSAPP TYPES
 // ============================================

@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from '../config/env.js';
-import type { User, Club, Event, Reminder, ConversationState, EventFilters, ClubWithStats, MessageHistory } from '../types/index.js';
+import type { User, Club, Event, Reminder, ConversationState, EventFilters, ClubWithStats, MessageHistory, UserFeedback } from '../types/index.js';
 
 // ── Initialize Supabase client with service role key ──
 const supabase: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -654,4 +654,22 @@ export async function getRecentMessages(
     .limit(limit);
   if (error) return [];
   return ((data || []) as MessageHistory[]).reverse();
+}
+
+export async function submitUserFeedback(
+  userId: string,
+  body: string,
+  contextSnapshot: string
+): Promise<UserFeedback> {
+  const { data, error } = await supabase
+    .from('user_feedback')
+    .insert({
+      user_id: userId,
+      body: body.substring(0, 4000),
+      context_snapshot: contextSnapshot.substring(0, 8000),
+    })
+    .select()
+    .single();
+  if (error) throw new Error(`Failed to save feedback: ${error.message}`);
+  return data as UserFeedback;
 }

@@ -16,6 +16,7 @@ import { handleReminder } from '../handlers/reminders.js';
 import { handleSavedEvents, handleSaveEvent, handleUnsaveEvent } from '../handlers/savedEvents.js';
 import { handleSubscribe, handleUnsubscribe, handleMySubscriptions } from '../handlers/subscriptions.js';
 import { handleDigestSetup, handleDigestPreferenceReply } from '../handlers/userDigest.js';
+import { handleFeedbackCommand, handleFeedbackReply } from '../handlers/feedback.js';
 import { handleClubDiscovery, handleClubDetail } from '../handlers/clubDiscovery.js';
 import { handleClubProfile, handleEditClub } from '../handlers/clubProfile.js';
 import { handleAdminCommands } from '../handlers/adminCommands.js';
@@ -47,7 +48,8 @@ export async function routeMessage(user: User, message: WhatsAppMessage): Promis
     if (!user.onboarded && user.role === 'user') {
       // But first check if they're sending a command that should bypass onboarding
       const text = message.text?.body?.trim().toLowerCase() || '';
-      if (!text.startsWith('/register') && !text.startsWith('/join') && !text.startsWith('/help')) {
+      if (!text.startsWith('/register') && !text.startsWith('/join') && !text.startsWith('/help') &&
+          !text.startsWith('/feedback')) {
         return await handleOnboarding(user, message);
       }
     }
@@ -152,6 +154,10 @@ export async function routeMessage(user: User, message: WhatsAppMessage): Promis
     }
     if (textLower === '/mysubs') return await handleMySubscriptions(user);
 
+    if (textLower === '/feedback' || textLower.startsWith('/feedback ')) {
+      return await handleFeedbackCommand(user, message);
+    }
+
     // Admin commands
     if (textLower.startsWith('/adduser ') || textLower.startsWith('/removeuser ') || 
         textLower === '/orginfo' || textLower === '/analytics') {
@@ -207,6 +213,9 @@ async function handleStatefulMessage(user: User, message: WhatsAppMessage, state
 
     case 'awaiting_digest_preferences':
       return await handleDigestPreferenceReply(user, message);
+
+    case 'awaiting_feedback_text':
+      return await handleFeedbackReply(user, message);
 
     case 'editing_club':
       return await handleEditClub(user, message);

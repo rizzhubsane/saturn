@@ -375,7 +375,8 @@ function formatStudentHelp(): string {
     '*Your Stuff*',
     '/saved -- your bookmarked events',
     '/mysubs -- your notification preferences',
-    '/digest -- set your daily digest preferences\n',
+    '/digest -- set your daily digest preferences',
+    '/feedback -- share how Saturn is working for you\n',
     '*Discover*',
     '/clubs -- browse all campus clubs',
     '/club <name> -- see a club\'s profile\n',
@@ -395,7 +396,8 @@ function formatPowerUserHelp(): string {
     '*Discover*',
     '/today /tomorrow /week -- browse events',
     '/clubs -- see all clubs',
-    '/saved -- your bookmarked events\n',
+    '/saved -- your bookmarked events',
+    '/feedback -- bugs, ideas, or praise\n',
     '_Just ask me anything in plain English too._',
   ].join('\n');
 }
@@ -417,7 +419,8 @@ function formatAdminHelp(): string {
     '*Discover*',
     '/today /tomorrow /week -- browse events',
     '/clubs -- see all clubs',
-    '/saved -- your bookmarks\n',
+    '/saved -- your bookmarks',
+    '/feedback -- share product feedback anytime\n',
     '_Share your invite code with team members so they can /join._',
   ].join('\n');
 }
@@ -437,6 +440,6 @@ function formatGodHelp(): string {
     '*Regular*',
     '/post /myevents /clubinfo /editclub',
     '/adduser /removeuser /orginfo /analytics',
-    '/today /tomorrow /week /clubs /saved',
+    '/today /tomorrow /week /clubs /saved /feedback',
   ].join('\n');
 }
