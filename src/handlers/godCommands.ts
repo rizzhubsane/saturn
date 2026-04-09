@@ -73,8 +73,13 @@ async function handlePromote(user: User, text: string): Promise<void> {
   }
 
   const phone = parts[0];
-  const role = parts[1]; // 'admin' or 'power_user'
+  const role = parts[1].toLowerCase();
   const clubName = parts.slice(2).join(' ');
+
+  if (role !== 'admin' && role !== 'power_user') {
+    await sendText(user.phone, 'Usage: `/promote <phone> admin|power_user <club_name>` — role must be `admin` or `power_user`.');
+    return;
+  }
 
   try {
     const targetUser = await getUserByPhone(phone);
@@ -83,7 +88,7 @@ async function handlePromote(user: User, text: string): Promise<void> {
       return;
     }
 
-    // Find club
+    // Find club (exact name, case-insensitive — see getClubByName in db)
     const { getClubByName } = await import('../db/supabase.js');
     const club = await getClubByName(clubName);
     if (!club) {
@@ -91,7 +96,7 @@ async function handlePromote(user: User, text: string): Promise<void> {
       return;
     }
 
-    await updateUser(targetUser.id, { role: role as any, club_id: club.id } as any);
+    await updateUser(targetUser.id, { role, club_id: club.id } as any);
 
     // Update club admin phone if promoting to admin
     if (role === 'admin') {

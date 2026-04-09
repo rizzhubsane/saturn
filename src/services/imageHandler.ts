@@ -19,8 +19,11 @@ export async function processEventImage(
   const mediaUrl = await getMediaUrl(mediaId);
   const rawBuffer = await downloadMedia(mediaUrl);
 
-  // Step 3: Compress with Sharp
-  const compressed = await sharp(rawBuffer)
+  // Step 3: Compress with Sharp (reject decompression bombs / huge images)
+  const compressed = await sharp(rawBuffer, {
+    limitInputPixels: 50_000_000, // ~50MP; WhatsApp images are far smaller
+    sequentialRead: true,
+  })
     .resize(1200, null, { withoutEnlargement: true }) // max 1200px width
     .jpeg({ quality: 80 })
     .toBuffer();
@@ -56,8 +59,10 @@ export async function getImageBase64(mediaId: string): Promise<{ base64: string;
   const mediaUrl = await getMediaUrl(mediaId);
   const rawBuffer = await downloadMedia(mediaUrl);
 
-  // Light compression for OCR
-  const compressed = await sharp(rawBuffer)
+  const compressed = await sharp(rawBuffer, {
+    limitInputPixels: 50_000_000,
+    sequentialRead: true,
+  })
     .resize(1500, null, { withoutEnlargement: true })
     .jpeg({ quality: 85 })
     .toBuffer();

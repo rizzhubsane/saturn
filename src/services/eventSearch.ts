@@ -1,6 +1,6 @@
 import { completeJSON } from './llm.js';
 import { queryEvents as dbQueryEvents, getRecentMessages } from '../db/supabase.js';
-import { getTodayIST, getDateRange } from '../utils/dateParser.js';
+import { getTodayIST, getDateRange, addCalendarDays } from '../utils/dateParser.js';
 import type { Event, EventFilters, ParsedQuery } from '../types/index.js';
 import categoriesConfig from '../config/categories.json' with { type: "json" };
 
@@ -26,7 +26,50 @@ Respond with ONLY a JSON object:
 HINTS:
 - For queries asking "is there a X club" or "what clubs exist", set intent_domain to "clubs". Extract category if inferable.
 - For queries asking about an event, set intent_domain to "events". Map "hardware", "motorsports", etc. to "engineering", and "mental health", "charity" to "wellness".
+- CRITICAL: If the user combines a topic AND a time window (e.g. "sports events this week", "tech talks tomorrow", "cultural events today"), you MUST set intent_domain to "events", include the right category slugs in "categories", set "type" to today|tomorrow|this_week|this_weekend matching their window, and set time_range_start/time_range_end to match that window. Do NOT leave type as "search" for those.
+- "This week" means type "this_week". "Tonight" / "today" means type "today". "Tomorrow" means type "tomorrow".
 - For generic conversation ("who are you", "hi", "how does this work"), set intent_domain to "general", set type to "search", and write a friendly response in direct_reply.`;
+
+/** Rule-based fixes when the model misses time window + category together */
+function enrichParsedQuery(naturalQuery: string, parsed: ParsedQuery): ParsedQuery {
+  const lower = naturalQuery.toLowerCase().trim();
+  if (parsed.intent_domain !== 'events') return parsed;
+
+  const out: ParsedQuery = { ...parsed, categories: [...(parsed.categories || [])] };
+
+  if (/\bthis\s+week\b/.test(lower) || /\bthisweek\b/.test(lower)) {
+    const r = getDateRange('this_week');
+    out.time_range_start = r.start;
+    out.time_range_end = r.end;
+    out.type = 'this_week';
+  } else if (/\bnext\s+week\b/.test(lower)) {
+    const t = getTodayIST();
+    out.time_range_start = addCalendarDays(t, 7);
+    out.time_range_end = addCalendarDays(t, 13);
+    out.type = 'search';
+  } else if (/\btomorrow\b/.test(lower) && !/\btoday\b/.test(lower) && !/\btonight\b/.test(lower)) {
+    const r = getDateRange('tomorrow');
+    out.time_range_start = r.start;
+    out.time_range_end = r.end;
+    out.type = 'tomorrow';
+  } else if (/\b(today|tonight)\b/.test(lower) && !/\btomorrow\b/.test(lower)) {
+    const r = getDateRange('today');
+    out.time_range_start = r.start;
+    out.time_range_end = r.end;
+    out.type = 'today';
+  } else if (/\bweekend\b/.test(lower) && !/\bthis\s+week\b/.test(lower)) {
+    const r = getDateRange('this_weekend');
+    out.time_range_start = r.start;
+    out.time_range_end = r.end;
+    out.type = 'this_weekend';
+  }
+
+  if (/\b(sport|sports|football|cricket|basketball|badminton|athletics|khel)\b/i.test(lower)) {
+    if (!out.categories.includes('sports')) out.categories.push('sports');
+  }
+
+  return out;
+}
 
 /**
  * Parse a natural language query using LLM, then search the database.
@@ -62,19 +105,22 @@ export async function searchEvents(naturalQuery: string, userId?: string): Promi
     temperature: 0.2,
   });
 
-  if (parsed.intent_domain === 'general') {
+  const enriched =
+    parsed.intent_domain === 'events' ? enrichParsedQuery(naturalQuery, parsed) : parsed;
+
+  if (enriched.intent_domain === 'general') {
     return {
       domain: 'general',
-      intent: parsed.intent,
-      direct_reply: parsed.direct_reply
+      intent: enriched.intent,
+      direct_reply: enriched.direct_reply
     };
   }
 
-  if (parsed.intent_domain === 'clubs') {
+  if (enriched.intent_domain === 'clubs') {
     return {
       domain: 'clubs',
-      intent: parsed.intent,
-      categories: parsed.categories
+      intent: enriched.intent,
+      categories: enriched.categories
     };
   }
 
@@ -85,10 +131,10 @@ export async function searchEvents(naturalQuery: string, userId?: string): Promi
   };
 
   // Set date range
-  if (parsed.time_range_start) {
-    filters.dateStart = parsed.time_range_start;
-  } else if (['today', 'tomorrow', 'this_week', 'this_weekend'].includes(parsed.type)) {
-    const range = getDateRange(parsed.type as any);
+  if (enriched.time_range_start) {
+    filters.dateStart = enriched.time_range_start;
+  } else if (['today', 'tomorrow', 'this_week', 'this_weekend'].includes(enriched.type)) {
+    const range = getDateRange(enriched.type as 'today' | 'tomorrow' | 'this_week' | 'this_weekend');
     filters.dateStart = range.start;
     filters.dateEnd = range.end;
   } else {
@@ -96,20 +142,20 @@ export async function searchEvents(naturalQuery: string, userId?: string): Promi
     filters.dateStart = today;
   }
 
-  if (parsed.time_range_end) {
-    filters.dateEnd = parsed.time_range_end;
+  if (enriched.time_range_end) {
+    filters.dateEnd = enriched.time_range_end;
   }
 
-  if (parsed.categories && parsed.categories.length > 0) {
-    filters.categories = parsed.categories;
+  if (enriched.categories && enriched.categories.length > 0) {
+    filters.categories = enriched.categories;
   }
 
-  if (parsed.keywords && parsed.keywords.length > 0) {
-    filters.keywords = parsed.keywords;
+  if (enriched.keywords && enriched.keywords.length > 0) {
+    filters.keywords = enriched.keywords;
   }
 
   const events = await dbQueryEvents(filters);
-  return { domain: 'events', events, intent: parsed.intent };
+  return { domain: 'events', events, intent: enriched.intent };
 }
 
 /**

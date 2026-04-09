@@ -4,15 +4,22 @@ import { verifyWebhook } from './webhook/verify.js';
 import { handleWebhook } from './webhook/handler.js';
 import { validateSignature } from './webhook/signature.js';
 import { initScheduler } from './services/scheduler.js';
+import { handleCalendarIcsRoute } from './webhook/calendarIcsRoute.js';
 
 const app = express();
 
-// ── Raw body capture for signature verification ──
+// ── Raw body capture for signature verification (limit size — webhook payloads are small) ──
 app.use(express.json({
+  limit: '256kb',
   verify: (req: any, _res, buf) => {
-    req.rawBody = buf.toString();
+    req.rawBody = buf.toString('utf8');
   },
 }));
+
+// ── Public ICS for calendar apps (Apple Calendar, etc.) ──
+app.get('/calendar/ics/:eventId', (req, res) => {
+  void handleCalendarIcsRoute(req, res);
+});
 
 // ── Health check ──
 app.get('/health', (_req, res) => {

@@ -14,10 +14,15 @@ import {
 } from '../db/supabase.js';
 import { formatDigest, formatEventCard } from '../utils/formatter.js';
 import { getTodayIST, getDateRange, formatHumanDate, formatHumanTime } from '../utils/dateParser.js';
-import { WHATSAPP_COMMUNITY_GROUP_ID } from '../config/env.js';
+import { WHATSAPP_COMMUNITY_GROUP_ID, ALLOW_PROACTIVE_OUTBOUND } from '../config/env.js';
 import categoriesConfig from '../config/categories.json' with { type: "json" };
 
 const categoryMap = new Map(categoriesConfig.categories.map(c => [c.slug, c]));
+
+/** God posts tagged *admin* are DB-logged but not pushed to mass student channels. */
+function excludeAdminAudience<T extends { audience_scope?: string | null }>(events: T[]): T[] {
+  return events.filter(e => e.audience_scope !== 'admin');
+}
 
 /**
  * Initialize all scheduled jobs.
@@ -25,26 +30,37 @@ const categoryMap = new Map(categoriesConfig.categories.map(c => [c.slug, c]));
 export function initScheduler(): void {
   console.log('⏰ Initializing scheduler...');
 
-  // Morning digest — 9:00 AM IST daily
-  cron.schedule('0 9 * * *', async () => {
-    console.log('📨 Running morning digest...');
-    await sendDigest('morning');
-    await sendUserDigests('morning');
-  }, { timezone: 'Asia/Kolkata' });
+  if (!ALLOW_PROACTIVE_OUTBOUND) {
+    console.log('  ℹ️ ALLOW_PROACTIVE_OUTBOUND=false — skipping scheduled WhatsApp sends (digests, reminders, subscriber pings).');
+  }
 
-  // Evening digest — 6:00 PM IST daily
-  cron.schedule('0 18 * * *', async () => {
-    console.log('📨 Running evening digest...');
-    await sendDigest('evening');
-    await sendUserDigests('evening');
-  }, { timezone: 'Asia/Kolkata' });
+  if (ALLOW_PROACTIVE_OUTBOUND) {
+    // Morning digest — 9:00 AM IST daily
+    cron.schedule('0 9 * * *', async () => {
+      console.log('📨 Running morning digest...');
+      await sendDigest('morning');
+      await sendUserDigests('morning');
+    }, { timezone: 'Asia/Kolkata' });
 
-  // Reminder sender — every minute
-  cron.schedule('* * * * *', async () => {
-    await sendPendingReminders();
-  }, { timezone: 'Asia/Kolkata' });
+    // Evening digest — 6:00 PM IST daily
+    cron.schedule('0 18 * * *', async () => {
+      console.log('📨 Running evening digest...');
+      await sendDigest('evening');
+      await sendUserDigests('evening');
+    }, { timezone: 'Asia/Kolkata' });
 
-  // Event expiry — midnight IST
+    // Reminder sender — every minute
+    cron.schedule('* * * * *', async () => {
+      await sendPendingReminders();
+    }, { timezone: 'Asia/Kolkata' });
+
+    // Subscriber notifications — every 30 minutes (check for new events matching subscriptions)
+    cron.schedule('*/30 * * * *', async () => {
+      await notifySubscribers();
+    }, { timezone: 'Asia/Kolkata' });
+  }
+
+  // Event expiry — midnight IST (no WhatsApp charge)
   cron.schedule('0 0 * * *', async () => {
     console.log('🗑️ Running event expiry...');
     const count = await expirePastEvents();
@@ -56,12 +72,8 @@ export function initScheduler(): void {
     await cleanupExpiredStates();
   }, { timezone: 'Asia/Kolkata' });
 
-  // Subscriber notifications — every 30 minutes (check for new events matching subscriptions)
-  cron.schedule('*/30 * * * *', async () => {
-    await notifySubscribers();
-  }, { timezone: 'Asia/Kolkata' });
-
-  console.log('✅ Scheduler initialized with 6 cron jobs');
+  const jobCount = ALLOW_PROACTIVE_OUTBOUND ? 6 : 2;
+  console.log(`✅ Scheduler initialized (${jobCount} cron job(s))`);
 }
 
 /**
@@ -73,14 +85,16 @@ async function sendDigest(type: 'morning' | 'evening'): Promise<void> {
     const tomorrow = getDateRange('tomorrow');
 
     // Get events for today + tomorrow that haven't been broadcast
-    const events = await getUnbroadcastedEvents();
+    const events = excludeAdminAudience(await getUnbroadcastedEvents());
 
     // Also get today's events (even if broadcast before — for the evening reminder)
-    const todayEvents = await queryEvents({
-      dateStart: today,
-      dateEnd: today,
-      status: 'confirmed',
-    });
+    const todayEvents = excludeAdminAudience(
+      await queryEvents({
+        dateStart: today,
+        dateEnd: today,
+        status: 'confirmed',
+      })
+    );
 
     const allEvents = type === 'morning'
       ? events // New + today
@@ -201,6 +215,8 @@ async function notifySubscribers(): Promise<void> {
     if (!newEvents || newEvents.length === 0) return;
 
     for (const event of newEvents) {
+      if (event.audience_scope === 'admin') continue;
+
       for (const category of event.categories) {
         const subscribers = await getSubscribersForCategory(category);
 
@@ -251,9 +267,11 @@ async function sendUserDigests(type: 'morning' | 'evening'): Promise<void> {
           categories,
         });
 
+        const noAdmin = excludeAdminAudience(events);
+
         const filtered = type === 'morning'
-          ? events
-          : events.filter(e => {
+          ? noAdmin
+          : noAdmin.filter(e => {
             if (!e.time) return true;
             const hour = parseInt(e.time.split(':')[0]);
             return hour >= 17;

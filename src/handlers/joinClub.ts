@@ -27,8 +27,12 @@ export async function handleJoinClub(user: User, message: WhatsAppMessage): Prom
     return;
   }
 
-  // Link user to club
-  await updateUser(user.id, { role: 'power_user', club_id: club.id } as any);
+  // Link user to club (never downgrade god role)
+  if (user.role === 'god') {
+    await updateUser(user.id, { club_id: club.id } as any);
+  } else {
+    await updateUser(user.id, { role: 'power_user', club_id: club.id } as any);
+  }
 
   await sendText(user.phone,
     `✅ You're now a power user for *${club.name}*!\n\n` +

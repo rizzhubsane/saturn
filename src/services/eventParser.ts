@@ -1,5 +1,5 @@
 import { completeJSON } from './llm.js';
-import { getTodayIST } from '../utils/dateParser.js';
+import { getTodayIST, addCalendarDays } from '../utils/dateParser.js';
 import type { ParsedEvent } from '../types/index.js';
 import venueMap from '../config/venues.json' with { type: "json" };
 import categoriesConfig from '../config/categories.json' with { type: "json" };
@@ -99,6 +99,89 @@ export async function parseEventMessage(
   parsed.event_type = parsed.event_type || 'other';
 
   // Back-fill registration_link from links array if not set
+  if (!parsed.registration_link && parsed.links.length > 0) {
+    const regLink = parsed.links.find(l => l.label === 'register' || l.label === 'form');
+    parsed.registration_link = regLink?.url || parsed.links[0].url;
+  }
+
+  return parsed;
+}
+
+export type GodAnnouncementKind = 'club_info' | 'opportunity';
+
+/**
+ * Parse club-wide notices or opportunity listings (god flow — no strict event date required).
+ * Produces a ParsedEvent-shaped object for the same confirmation / DB pipeline as real events.
+ */
+export async function parseGodAnnouncement(
+  rawMessage: string,
+  ocrText: string,
+  kind: GodAnnouncementKind
+): Promise<ParsedEvent> {
+  const today = getTodayIST();
+  const defaultListDate = addCalendarDays(today, kind === 'opportunity' ? 21 : 30);
+
+  const kindLabel =
+    kind === 'club_info'
+      ? 'club / society notice (deadlines, fee updates, general club info — not a dated event)'
+      : 'opportunity (internship, job, scholarship, competition, application window)';
+
+  const systemPrompt = `You structure IIT Delhi campus WhatsApp messages for the student feed. This is ${kindLabel}.
+
+Today is ${today}. Use field "date" as YYYY-MM-DD:
+- If the message states a deadline, last date, or event date, use that.
+- Otherwise use ${defaultListDate} as a reasonable listing "sort / visibility" date (not shown as "event on" to users as strongly as a real event).
+
+Available categories (assign 1-3 slugs):
+${JSON.stringify(categoriesConfig.categories.map(c => ({ slug: c.slug, label: c.label })))}
+
+Respond with ONLY JSON, no markdown:
+{
+  "title": "clear headline",
+  "description": "full summary — preserve important details",
+  "date": "YYYY-MM-DD",
+  "time": null,
+  "end_time": null,
+  "venue": null,
+  "venue_raw": null,
+  "categories": ["slug"],
+  "highlights": ["one short hook"],
+  "links": [{"url": "https://...", "label": "register|website|form|info|other"}],
+  "event_type": "other",
+  "registration_link": "primary URL or null",
+  "is_all_day": true,
+  "confidence": 0.0-1.0
+}`;
+
+  let userPrompt = `MESSAGE:\n${rawMessage}`;
+  if (ocrText) {
+    userPrompt += `\n\nOCR FROM IMAGE:\n${ocrText}`;
+  }
+
+  const parsed = await completeJSON<ParsedEvent>(systemPrompt, userPrompt, {
+    temperature: 0.25,
+  });
+
+  if (!parsed.title) {
+    throw new Error('Could not extract a title from this message');
+  }
+  if (!parsed.date) {
+    parsed.date = defaultListDate;
+  }
+
+  const validSlugs = new Set(categoriesConfig.categories.map(c => c.slug));
+  parsed.categories = (parsed.categories || []).filter(c => validSlugs.has(c));
+  if (parsed.categories.length === 0) {
+    parsed.categories = ['other' as any];
+  }
+  parsed.highlights = parsed.highlights || [];
+  parsed.links = parsed.links || [];
+  parsed.event_type = parsed.event_type || 'other';
+  parsed.time = null;
+  parsed.end_time = null;
+  parsed.venue = null;
+  parsed.venue_raw = null;
+
   if (!parsed.registration_link && parsed.links.length > 0) {
     const regLink = parsed.links.find(l => l.label === 'register' || l.label === 'form');
     parsed.registration_link = regLink?.url || parsed.links[0].url;

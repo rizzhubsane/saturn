@@ -90,14 +90,16 @@ export async function getClubById(id: string): Promise<Club | null> {
   return data as Club | null;
 }
 
+/**
+ * Case-insensitive exact name match (no ILIKE wildcards — `%` / `_` in names are literal).
+ * Loads active clubs and matches in memory; fine for typical campus-scale club counts.
+ */
 export async function getClubByName(name: string): Promise<Club | null> {
-  const { data } = await supabase
-    .from('clubs')
-    .select('*')
-    .ilike('name', name)
-    .eq('status', 'active')
-    .single();
-  return data as Club | null;
+  const t = name.trim().toLowerCase();
+  if (!t) return null;
+  const { data, error } = await supabase.from('clubs').select('*').eq('status', 'active');
+  if (error || !data?.length) return null;
+  return (data as Club[]).find(c => c.name.toLowerCase() === t) ?? null;
 }
 
 export async function updateClub(clubId: string, updates: Partial<Club>): Promise<void> {
@@ -607,6 +609,22 @@ export async function inviteCodeExists(code: string): Promise<boolean> {
     .eq('invite_code', code)
     .single();
   return !!data;
+}
+
+/**
+ * Claim a WhatsApp message id for idempotent webhook handling.
+ * @returns true if this is the first time we see this id (caller should process), false if duplicate.
+ */
+export async function claimWebhookMessageId(messageId: string): Promise<boolean> {
+  const { error } = await supabase.from('processed_webhook_messages').insert({ message_id: messageId });
+  if (!error) {
+    return true;
+  }
+  if (error.code === '23505') {
+    return false;
+  }
+  console.error('claimWebhookMessageId insert error:', error.message);
+  return true;
 }
 
 // ============================================

@@ -2,6 +2,7 @@ import type { User } from '../types/index.js';
 import { sendText, sendButtons, sendImage } from '../services/whatsapp.js';
 import { getEventById, getEventsPostedBy, logEventView } from '../db/supabase.js';
 import { searchByCommand, searchByKeyword, searchByCategory, searchEvents } from '../services/eventSearch.js';
+import type { TimePreset } from '../utils/slashCompound.js';
 import { formatEventCard, formatEventList } from '../utils/formatter.js';
 import { formatHumanDate } from '../utils/dateParser.js';
 import categoriesConfig from '../config/categories.json' with { type: "json" };
@@ -50,6 +51,21 @@ export async function handleQueryEvents(
         events = await searchByCategory(param || '');
         const cat = categoryMap.get(param || '');
         title = cat ? `${cat.label} Events` : `${param} Events`;
+        break;
+      }
+      case 'category_time': {
+        const [catSlug, preset] = (param || '').split('|') as [string, TimePreset];
+        const cat = categoryMap.get(catSlug);
+        const rangeLabel =
+          preset === 'today'
+            ? 'Today'
+            : preset === 'tomorrow'
+              ? 'Tomorrow'
+              : preset === 'this_week'
+                ? 'This Week'
+                : 'This Weekend';
+        events = await searchByCommand(preset, { categories: [catSlug] });
+        title = cat ? `${cat.label} — ${rangeLabel}` : `${catSlug} — ${rangeLabel}`;
         break;
       }
       case 'myevents': {

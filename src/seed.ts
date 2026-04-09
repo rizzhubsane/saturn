@@ -7,46 +7,19 @@
  * Some events are sourced from IIT Delhi circular announcements.
  */
 
-import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 dotenv.config();
+
+import { createClient } from '@supabase/supabase-js';
+import { IITD_BODIES } from './data/iitdBodies.js';
+import { generateInviteCode } from './utils/inviteCode.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// ── Clubs extracted from the Mercury Connect chat ──
-const clubs = [
-  { name: 'BlocSoc', slug: 'blocsoc', category: 'tech', tagline: 'Blockchain Society, IIT Delhi' },
-  { name: 'IGTS', slug: 'igts', category: 'finance', tagline: 'Indian Game Theory Society' },
-  { name: 'AeroClub', slug: 'aeroclub', category: 'engineering', tagline: 'Aeronautics & Aviation Technology' },
-  { name: 'Economics & Finance Club', slug: 'efc', category: 'finance', tagline: 'Markets, Quant & Finance' },
-  { name: 'ACES-ACM', slug: 'aces-acm', category: 'tech', tagline: 'Association for Computing at IIT Delhi' },
-  { name: 'DevClub', slug: 'devclub', category: 'tech', tagline: 'Software Development Club' },
-  { name: 'Mathematical Society', slug: 'mathsoc', category: 'academic', tagline: 'Mathematics at IIT Delhi' },
-  { name: 'SInC', slug: 'sinc', category: 'startup', tagline: 'Student Incubation Cell' },
-  { name: 'SPIC MACAY', slug: 'spicmacay', category: 'cultural', tagline: 'Promoting Indian Classical Music & Culture' },
-  { name: 'BloodConnect', slug: 'bloodconnect', category: 'wellness', tagline: 'Student-run blood donation initiative' },
-  { name: 'AXLR8R Formula Racing', slug: 'axlr8r', category: 'engineering', tagline: 'Formula Student Racing Team' },
-  { name: 'Robotics Club', slug: 'robotics-club', category: 'engineering', tagline: 'Robotics & Automation' },
-  { name: 'ANCC', slug: 'ancc', category: 'tech', tagline: 'Algorithms & Competitive Programming' },
-  { name: 'PhySoc', slug: 'physoc', category: 'academic', tagline: 'Physics Society, IIT Delhi' },
-  { name: 'Quizzing Club', slug: 'quizzing-club', category: 'literature', tagline: 'Quizzes, Trivia & Knowledge' },
-  { name: 'ARIES', slug: 'aries', category: 'tech', tagline: 'AI, Robotics & Innovation' },
-  { name: 'AINA', slug: 'aina', category: 'wellness', tagline: 'An Initiative for National Advancement' },
-  { name: 'Infinity Hyperloop', slug: 'infinity-hyperloop', category: 'engineering', tagline: 'Future of Ultra-Fast Travel' },
-  { name: 'MES', slug: 'mes', category: 'sports', tagline: 'Mechanical Engineering Society' },
-  { name: 'Literati', slug: 'literati', category: 'literature', tagline: 'Literary Society, IIT Delhi' },
-  { name: 'eDC', slug: 'edc', category: 'startup', tagline: 'Entrepreneurship Development Cell' },
-  { name: 'iGEM IIT Delhi', slug: 'igem', category: 'engineering', tagline: 'Synthetic Biology & Bioengineering' },
-  { name: 'Northeast Society', slug: 'northeast-society', category: 'cultural', tagline: 'Celebrating Northeast Indian Culture' },
-  { name: 'BSW', slug: 'bsw', category: 'social', tagline: 'Board of Student Welfare' },
-  { name: 'Central Library', slug: 'central-library', category: 'academic', tagline: 'IIT Delhi Central Library' },
-  { name: 'NRCVEE', slug: 'nrcvee', category: 'wellness', tagline: 'National Resource Centre for Value Education in Engineering' },
-  { name: 'IHFC', slug: 'ihfc', category: 'engineering', tagline: 'IITD Host for Futuristic Collaborative Research' },
-  { name: 'Civil Engineering', slug: 'civil-dept', category: 'academic', tagline: 'Department of Civil Engineering, IIT Delhi' },
-];
+const clubs = IITD_BODIES;
 
 // ── Events extracted from the chat. Dates are real. ──
 // Today is 2026-04-09. Events before today get status 'expired', on/after get 'confirmed'.
@@ -627,22 +600,42 @@ async function seed() {
     console.log(`Created system user: ${systemUserId}`);
   }
 
-  // 2. Create clubs
+  // 2. Create or update clubs (metadata sync for existing slugs)
   const clubIdMap = new Map<string, string>();
   for (const club of clubs) {
-    const { data: existing } = await supabase
+    const { data: existing, error: fetchErr } = await supabase
       .from('clubs')
       .select('id')
       .eq('slug', club.slug)
-      .single();
+      .maybeSingle();
 
-    if (existing) {
-      clubIdMap.set(club.slug, existing.id);
-      console.log(`  Club exists: ${club.name}`);
+    if (fetchErr) {
+      console.error(`  Lookup failed ${club.slug}: ${fetchErr.message}`);
       continue;
     }
 
-    const inviteCode = club.slug.toUpperCase().replace(/-/g, '').substring(0, 6).padEnd(6, 'X');
+    if (existing) {
+      const { error: upErr } = await supabase
+        .from('clubs')
+        .update({
+          name: club.name,
+          tagline: club.tagline,
+          category: club.category,
+          description: club.description ?? null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('slug', club.slug);
+
+      if (upErr) {
+        console.error(`  Failed to update ${club.name}: ${upErr.message}`);
+      } else {
+        console.log(`  Updated club: ${club.name}`);
+      }
+      clubIdMap.set(club.slug, existing.id);
+      continue;
+    }
+
+    const inviteCode = await generateInviteCode();
     const { data: newClub, error } = await supabase
       .from('clubs')
       .insert({
@@ -652,6 +645,7 @@ async function seed() {
         admin_phone: systemPhone,
         category: club.category,
         tagline: club.tagline,
+        description: club.description ?? null,
         status: 'active',
       })
       .select('id')
@@ -662,7 +656,7 @@ async function seed() {
       continue;
     }
     clubIdMap.set(club.slug, newClub!.id);
-    console.log(`  Created club: ${club.name}`);
+    console.log(`  Created club: ${club.name} (invite ${inviteCode})`);
   }
 
   console.log(`\nClubs seeded: ${clubIdMap.size}\n`);

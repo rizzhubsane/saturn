@@ -10,9 +10,10 @@ import { handleOnboarding, handleOnboardingReply } from '../handlers/onboarding.
 import { handleRegisterClub } from '../handlers/registerClub.js';
 import { handleJoinClub } from '../handlers/joinClub.js';
 import { handlePostEvent, handlePostContent } from '../handlers/postEvent.js';
+import { handleGodKindSelection, handleGodAudienceSelection } from '../handlers/godPostWizard.js';
 import { handleConfirmEvent, handleEditFieldSelection } from '../handlers/confirmEvent.js';
 import { handleQueryEvents, handleEventDetail } from '../handlers/queryEvents.js';
-import { handleReminder } from '../handlers/reminders.js';
+import { handleReminder, handleCalendarDeviceReply } from '../handlers/reminders.js';
 import { handleSavedEvents, handleSaveEvent, handleUnsaveEvent } from '../handlers/savedEvents.js';
 import { handleSubscribe, handleUnsubscribe, handleMySubscriptions } from '../handlers/subscriptions.js';
 import { handleDigestSetup, handleDigestPreferenceReply } from '../handlers/userDigest.js';
@@ -21,6 +22,8 @@ import { handleClubDiscovery, handleClubDetail } from '../handlers/clubDiscovery
 import { handleClubProfile, handleEditClub } from '../handlers/clubProfile.js';
 import { handleAdminCommands } from '../handlers/adminCommands.js';
 import { handleGodCommands } from '../handlers/godCommands.js';
+import { normalizeCommandBody, shouldBreakOutToCommandRouter } from '../utils/commandText.js';
+import { parseCategorySlashTime } from '../utils/slashCompound.js';
 
 const categorySlugSet = new Set(categoriesConfig.categories.map(c => c.slug));
 
@@ -47,7 +50,7 @@ export async function routeMessage(user: User, message: WhatsAppMessage): Promis
     // ── Step 2: Check if user needs onboarding ──
     if (!user.onboarded && user.role === 'user') {
       // But first check if they're sending a command that should bypass onboarding
-      const text = message.text?.body?.trim().toLowerCase() || '';
+      const text = normalizeCommandBody(message.text?.body || '').toLowerCase();
       if (!text.startsWith('/register') && !text.startsWith('/join') && !text.startsWith('/help') &&
           !text.startsWith('/feedback')) {
         return await handleOnboarding(user, message);
@@ -60,7 +63,7 @@ export async function routeMessage(user: User, message: WhatsAppMessage): Promis
     }
 
     // ── Step 4: Command-based routing ──
-    const text = message.text?.body?.trim() || '';
+    const text = normalizeCommandBody(message.text?.body || '');
     const textLower = text.toLowerCase();
 
     // Help & Greetings
@@ -93,6 +96,12 @@ export async function routeMessage(user: User, message: WhatsAppMessage): Promis
     if (textLower === '/tomorrow') return await handleQueryEvents(user, 'tomorrow');
     if (textLower === '/week' || textLower === '/thisweek') return await handleQueryEvents(user, 'this_week');
     if (textLower === '/weekend') return await handleQueryEvents(user, 'this_weekend');
+
+    // Compound: /sports today, /tech this week, /sports /week (before single-category and /search)
+    const compound = parseCategorySlashTime(textLower, categorySlugSet);
+    if (compound) {
+      return await handleQueryEvents(user, 'category_time', `${compound.category}|${compound.preset}`);
+    }
 
     // Search
     if (textLower.startsWith('/search ')) {
@@ -186,7 +195,32 @@ export async function routeMessage(user: User, message: WhatsAppMessage): Promis
  * Handle messages when user has active conversation state.
  */
 async function handleStatefulMessage(user: User, message: WhatsAppMessage, state: any): Promise<void> {
+  // Let real slash commands (e.g. /post, /today) escape stale flows — otherwise /post is parsed as event text
+  // or digest/feedback steps swallow navigation commands.
+  if (message.type === 'text' && message.text?.body && shouldBreakOutToCommandRouter(message.text.body)) {
+    const { clearConversationState } = await import('../db/supabase.js');
+    await clearConversationState(user.id);
+    const normalized = normalizeCommandBody(message.text.body);
+    return await routeMessage(user, { ...message, text: { body: normalized } });
+  }
+
   switch (state.state) {
+    case 'god_choose_kind':
+      if (message.type === 'interactive') {
+        const id = message.interactive?.button_reply?.id || '';
+        return await handleGodKindSelection(user, id);
+      }
+      await sendText(user.phone, 'Tap *Event*, *Club info*, or *Opportunity* above.');
+      return;
+
+    case 'god_choose_audience':
+      if (message.type === 'interactive') {
+        const id = message.interactive?.button_reply?.id || '';
+        return await handleGodAudienceSelection(user, id);
+      }
+      await sendText(user.phone, 'Tap *Clubs*, *Admin*, or *General* above.');
+      return;
+
     case 'awaiting_event_content':
       return await handlePostContent(user, message, state);
 
@@ -250,6 +284,17 @@ async function handleStatefulMessage(user: User, message: WhatsAppMessage, state
  */
 async function handleInteractiveReply(user: User, message: WhatsAppMessage): Promise<void> {
   const replyId = message.interactive?.button_reply?.id || message.interactive?.list_reply?.id || '';
+
+  if (replyId.startsWith('god_kind_')) {
+    return await handleGodKindSelection(user, replyId);
+  }
+  if (replyId.startsWith('god_aud_')) {
+    return await handleGodAudienceSelection(user, replyId);
+  }
+
+  if (/^cal_(ios|android|both)_/i.test(replyId)) {
+    return await handleCalendarDeviceReply(user, replyId);
+  }
 
   // Fallback notify buttons
   if (replyId === 'subscribe_prompt') {

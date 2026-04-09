@@ -1,7 +1,23 @@
 import type { User, ConversationState } from '../types/index.js';
 import { sendText, sendButtons, sendList } from '../services/whatsapp.js';
-import { createEvent, clearConversationState, getClubById, setConversationState } from '../db/supabase.js';
+import { createEvent, clearConversationState, getClubById, getClubBySlug, setConversationState } from '../db/supabase.js';
 import { processEventImage } from '../services/imageHandler.js';
+import { godPostContextFromState } from './godPostWizard.js';
+
+/** When god has no club_id, post under this slug (must exist in DB — see seed). */
+const GOD_FALLBACK_CLUB_SLUG = 'campus-announcements';
+
+async function resolvePostingClub(user: User): Promise<{ id: string; slug: string } | null> {
+  if (user.club_id) {
+    const c = await getClubById(user.club_id);
+    return c ? { id: c.id, slug: c.slug } : null;
+  }
+  if (user.role === 'god') {
+    const c = await getClubBySlug(GOD_FALLBACK_CLUB_SLUG);
+    return c ? { id: c.id, slug: c.slug } : null;
+  }
+  return null;
+}
 
 /**
  * Handle confirmation/edit/cancel of parsed event.
@@ -17,26 +33,41 @@ export async function handleConfirmEvent(
   }
 
   const { parsed, rawMessage, mediaId, hasImage } = state.data;
+  const godCtx = godPostContextFromState(state);
 
   switch (action) {
     case 'confirm': {
       try {
-        await sendText(user.phone, 'Posting your event...');
+        const postingClub = await resolvePostingClub(user);
+        if (!postingClub) {
+          await sendText(
+            user.phone,
+            'Cannot post: your account is not linked to a club. ' +
+              `God accounts without /join fall back to *${GOD_FALLBACK_CLUB_SLUG}* — run DB seed or contact ops.`
+          );
+          await clearConversationState(user.id);
+          break;
+        }
+
+        await sendText(user.phone, 'Posting...');
 
         let posterUrl: string | null = null;
-        if (hasImage && mediaId && user.club_id) {
+        if (hasImage && mediaId) {
           try {
-            const club = await getClubById(user.club_id);
             const tempId = Date.now().toString(36);
-            const result = await processEventImage(mediaId, club?.slug || 'unknown', tempId);
+            const result = await processEventImage(mediaId, postingClub.slug, tempId);
             posterUrl = result.publicUrl;
           } catch (err: any) {
             console.warn('Image upload failed:', err.message);
           }
         }
 
+        const contentKind = godCtx?.godContentKind ?? 'event';
+        const audienceScope = godCtx?.godAudienceScope ?? null;
+        const skipMassBroadcast = audienceScope === 'admin';
+
         const event = await createEvent({
-          club_id: user.club_id!,
+          club_id: postingClub.id,
           posted_by: user.id,
           title: parsed.title,
           description: parsed.description,
@@ -55,18 +86,39 @@ export async function handleConfirmEvent(
           poster_ocr_text: state.data.ocrText || null,
           status: 'confirmed',
           is_express: false,
-          broadcast_sent: false,
+          broadcast_sent: skipMassBroadcast,
+          content_kind: contentKind,
+          audience_scope: audienceScope,
         } as any);
 
         await clearConversationState(user.id);
 
-        await sendText(user.phone,
-          `*Event posted!*\n\n` +
-          `*${parsed.title}*\n` +
-          `${parsed.date}${parsed.time ? ` at ${parsed.time}` : ''}\n\n` +
-          `It'll be in the next community broadcast.\n` +
-          `Event ID: \`${event.id.substring(0, 8)}\`\n\n` +
-          `I'll send you analytics after the event.`
+        const kindLine =
+          contentKind === 'event'
+            ? 'Event'
+            : contentKind === 'club_info'
+              ? 'Club info'
+              : 'Opportunity';
+        const scopeNote = audienceScope
+          ? audienceScope === 'admin'
+            ? '_Admin audience — not included in the mass student broadcast._\n\n'
+            : audienceScope === 'clubs'
+              ? '_Tagged for clubs audience._\n\n'
+              : '_Tagged for general audience._\n\n'
+          : '';
+        const broadcastNote = skipMassBroadcast
+          ? ''
+          : `It'll be in the next community broadcast.\n`;
+
+        await sendText(
+          user.phone,
+          `*${kindLine} posted!*\n\n` +
+            scopeNote +
+            `*${parsed.title}*\n` +
+            `${parsed.date}${parsed.time ? ` · ${parsed.time}` : ''}\n\n` +
+            broadcastNote +
+            `ID: \`${event.id.substring(0, 8)}\`\n\n` +
+            (contentKind === 'event' ? `I'll send you analytics after the event.` : `Logged with kind *${kindLine}*.`)
         );
 
         await sendButtons(user.phone, 'What next?', [
@@ -83,13 +135,18 @@ export async function handleConfirmEvent(
     }
 
     case 'edit': {
-      await setConversationState(user.id, 'awaiting_edit', {
+      const editPayload: Record<string, unknown> = {
         parsed,
         rawMessage,
         mediaId,
         hasImage,
         ocrText: state.data.ocrText,
-      });
+      };
+      if (godCtx) {
+        editPayload.godContentKind = godCtx.godContentKind;
+        editPayload.godAudienceScope = godCtx.godAudienceScope;
+      }
+      await setConversationState(user.id, 'awaiting_edit', editPayload);
 
       await sendList(
         user.phone,
@@ -144,8 +201,18 @@ export async function handleEditFieldSelection(
   const parsed = state.data.parsed;
 
   if (field === 'rewrite') {
-    await setConversationState(user.id, 'awaiting_event_content', {});
-    await sendText(user.phone, 'Send me the updated event message (text + optional poster).');
+    const ctx = godPostContextFromState(state);
+    await setConversationState(
+      user.id,
+      'awaiting_event_content',
+      ctx ? { godContentKind: ctx.godContentKind, godAudienceScope: ctx.godAudienceScope } : {}
+    );
+    await sendText(
+      user.phone,
+      ctx
+        ? 'Send the updated message (text + optional poster). Same kind and audience as before.'
+        : 'Send me the updated event message (text + optional poster).'
+    );
     return;
   }
 

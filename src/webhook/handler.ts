@@ -1,8 +1,9 @@
 import { Request, Response } from 'express';
 import { WhatsAppMessage } from '../types/index.js';
-import { getOrCreateUser, logMessage } from '../db/supabase.js';
+import { getOrCreateUser, logMessage, claimWebhookMessageId } from '../db/supabase.js';
 import { routeMessage } from '../router/messageRouter.js';
 import { markAsRead } from '../services/whatsapp.js';
+import { runWithOutboundInitiator } from '../services/outboundContext.js';
 
 /**
  * POST /webhook — Main handler for all incoming WhatsApp messages.
@@ -25,6 +26,13 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
     const value = body.entry[0].changes[0].value;
     const rawMessage = value.messages[0];
     const contact = value.contacts?.[0];
+
+    // Idempotent handling — Meta may retry the same delivery
+    const claimed = await claimWebhookMessageId(rawMessage.id);
+    if (!claimed) {
+      console.log(`⏭️ Duplicate webhook message ${rawMessage.id}, skipping`);
+      return;
+    }
 
     // Build our typed message object
     const message: WhatsAppMessage = {
@@ -77,8 +85,8 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
     const msgContent = message.text?.body || message.image?.caption || `[${message.type}]`;
     await logMessage(user.id, 'in', msgContent, message.type).catch(() => {});
 
-    // Route to the correct handler
-    await routeMessage(user, message);
+    // Route to the correct handler (only this user may receive outbound replies for this turn)
+    await runWithOutboundInitiator(message.from, () => routeMessage(user, message));
 
   } catch (error: any) {
     console.error('❌ Error handling webhook:', error.message, error.stack);

@@ -36,5 +36,15 @@ export const NODE_ENV = optional('NODE_ENV', 'development');
 export const TIMEZONE = optional('TIMEZONE', 'Asia/Kolkata');
 export const GOD_PHONE = required('GOD_PHONE');
 
+/**
+ * When false (default), WhatsApp sends only go to the user who triggered the current webhook
+ * (inbound message). Scheduled digests, reminders, subscriber pings, broadcast recipients, etc. are skipped.
+ * Set to `true` to restore mass outbound (digests, reminders, /broadcast to others, etc.).
+ */
+export const ALLOW_PROACTIVE_OUTBOUND = optional('ALLOW_PROACTIVE_OUTBOUND', 'false') === 'true';
+
+/** Public base URL (https, no trailing slash) for ICS links — e.g. https://api.yourdomain.com */
+export const PUBLIC_BASE_URL = optional('PUBLIC_BASE_URL', '').replace(/\/$/, '');
+
 // ── WhatsApp API Base URL ──
 export const WHATSAPP_API_URL = `https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_NUMBER_ID}`;

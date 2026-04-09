@@ -51,6 +51,10 @@ export interface Event {
   highlights: string[];
   links: EventLink[];
   event_type: string;
+  /** event | club_info | opportunity — god-classified; omitted on legacy rows */
+  content_kind?: 'event' | 'club_info' | 'opportunity';
+  /** clubs | admin | general — who the god post is for */
+  audience_scope?: 'clubs' | 'admin' | 'general' | null;
   poster_url: string | null;
   poster_ocr_text: string | null;
   status: 'pending' | 'confirmed' | 'cancelled' | 'expired';

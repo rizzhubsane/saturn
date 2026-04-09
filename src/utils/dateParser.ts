@@ -59,36 +59,58 @@ export function getTodayIST(): string {
 }
 
 /**
- * Get dates for time ranges.
+ * Add calendar days to a YYYY-MM-DD string using pure Gregorian math (UTC components).
+ * IMPORTANT: Do not use Date#getDate() in the server timezone — on UTC hosts that made
+ * "tomorrow" identical to "today" for IST users.
+ */
+export function addCalendarDays(isoDate: string, deltaDays: number): string {
+  const parts = isoDate.split('-').map(Number);
+  const y = parts[0];
+  const m = parts[1];
+  const d = parts[2];
+  const dt = new Date(Date.UTC(y, m - 1, d + deltaDays));
+  const yy = dt.getUTCFullYear();
+  const mm = String(dt.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(dt.getUTCDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}`;
+}
+
+/** Day of week (0=Sun..6=Sat) for a calendar date as observed in IST. */
+function getWeekdayIST(isoDate: string): number {
+  return new Date(`${isoDate}T12:00:00+05:30`).getDay();
+}
+
+/**
+ * Get dates for time ranges (all in IST calendar terms via getTodayIST).
  */
 export function getDateRange(type: 'today' | 'tomorrow' | 'this_week' | 'this_weekend'): { start: string; end: string } {
-  const today = new Date(getTodayIST() + 'T00:00:00+05:30');
+  const todayStr = getTodayIST();
 
   switch (type) {
     case 'today':
-      return { start: getTodayIST(), end: getTodayIST() };
+      return { start: todayStr, end: todayStr };
 
     case 'tomorrow': {
-      const d = new Date(today);
-      d.setDate(d.getDate() + 1);
-      const s = formatDate(d);
-      return { start: s, end: s };
+      const next = addCalendarDays(todayStr, 1);
+      return { start: next, end: next };
     }
 
     case 'this_week': {
-      const end = new Date(today);
-      end.setDate(end.getDate() + 6);
-      return { start: getTodayIST(), end: formatDate(end) };
+      return { start: todayStr, end: addCalendarDays(todayStr, 6) };
     }
 
     case 'this_weekend': {
-      const dayOfWeek = today.getDay();
-      const saturdayOffset = (6 - dayOfWeek + 7) % 7 || 7;
-      const saturday = new Date(today);
-      saturday.setDate(saturday.getDate() + saturdayOffset);
-      const sunday = new Date(saturday);
-      sunday.setDate(sunday.getDate() + 1);
-      return { start: formatDate(saturday), end: formatDate(sunday) };
+      const w = getWeekdayIST(todayStr);
+      if (w === 0) {
+        const sat = addCalendarDays(todayStr, -1);
+        return { start: sat, end: todayStr };
+      }
+      if (w === 6) {
+        return { start: todayStr, end: addCalendarDays(todayStr, 1) };
+      }
+      const daysToSat = (6 - w + 7) % 7;
+      const sat = addCalendarDays(todayStr, daysToSat);
+      return { start: sat, end: addCalendarDays(sat, 1) };
     }
   }
 }

@@ -2,6 +2,7 @@ import axios from 'axios';
 import { WHATSAPP_API_URL, WHATSAPP_ACCESS_TOKEN } from '../config/env.js';
 import type { WhatsAppButton, WhatsAppListSection } from '../types/index.js';
 import { buildMessageWithTip } from '../utils/discoveryTips.js';
+import { isOutboundAllowed } from './outboundContext.js';
 
 const api = axios.create({
   baseURL: WHATSAPP_API_URL,
@@ -15,6 +16,9 @@ const api = axios.create({
  * Send a plain text message.
  */
 export async function sendText(to: string, text: string): Promise<void> {
+  if (!isOutboundAllowed(to)) {
+    return;
+  }
   const textWithTip = buildMessageWithTip(to, text);
 
   // WhatsApp has a 4096 character limit
@@ -56,6 +60,9 @@ function logOutgoing(phone: string, text: string): void {
  * Send an image message with optional caption.
  */
 export async function sendImage(to: string, imageUrl: string, caption?: string): Promise<void> {
+  if (!isOutboundAllowed(to)) {
+    return;
+  }
   await api.post('/messages', {
     messaging_product: 'whatsapp',
     to,
@@ -77,6 +84,9 @@ export async function sendButtons(
   header?: string,
   footer?: string
 ): Promise<void> {
+  if (!isOutboundAllowed(to)) {
+    return;
+  }
   const messageWithTip = buildMessageWithTip(to, body);
   const tipText = messageWithTip.split('\n\n').pop() || '';
   const payload: any = {
@@ -112,6 +122,9 @@ export async function sendList(
   header?: string,
   footer?: string
 ): Promise<void> {
+  if (!isOutboundAllowed(to)) {
+    return;
+  }
   const messageWithTip = buildMessageWithTip(to, body);
   const tipText = messageWithTip.split('\n\n').pop() || '';
   const payload: any = {
@@ -153,6 +166,9 @@ export async function sendTemplate(
   languageCode: string = 'en',
   parameters: string[] = []
 ): Promise<void> {
+  if (!isOutboundAllowed(to)) {
+    return;
+  }
   const components: any[] = [];
   if (parameters.length > 0) {
     components.push({

@@ -126,10 +126,23 @@ export function formatEventList(events: Event[], title: string): string {
 /**
  * Format parsed event preview for confirmation.
  */
-export function formatParsedPreview(parsed: any): string {
+export function formatParsedPreview(
+  parsed: any,
+  meta?: { contentKind?: 'event' | 'club_info' | 'opportunity'; audienceScope?: 'clubs' | 'admin' | 'general' }
+): string {
   const lines: string[] = [];
 
-  lines.push('*Parsed Event Preview*\n');
+  if (meta?.contentKind && meta?.audienceScope) {
+    const kindLabel =
+      meta.contentKind === 'event' ? 'Event' : meta.contentKind === 'club_info' ? 'Club info' : 'Opportunity';
+    const scopeLabel =
+      meta.audienceScope === 'clubs' ? 'Clubs' : meta.audienceScope === 'admin' ? 'Admin' : 'General';
+    lines.push(`*${kindLabel}* · *${scopeLabel}*\n`);
+  }
+
+  const previewTitle =
+    meta?.contentKind && meta.contentKind !== 'event' ? '*Parsed preview*' : '*Parsed Event Preview*';
+  lines.push(`${previewTitle}\n`);
 
   // Title + highlight in one glance
   const highlightStr = (parsed.highlights || []).slice(0, 2).join(' · ');
