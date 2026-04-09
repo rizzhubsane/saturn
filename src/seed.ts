@@ -3,6 +3,8 @@
  * and populates the database with clubs and events.
  *
  * Run: npx tsx src/seed.ts
+ *
+ * Some events are sourced from IIT Delhi circular announcements.
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -40,6 +42,10 @@ const clubs = [
   { name: 'iGEM IIT Delhi', slug: 'igem', category: 'engineering', tagline: 'Synthetic Biology & Bioengineering' },
   { name: 'Northeast Society', slug: 'northeast-society', category: 'cultural', tagline: 'Celebrating Northeast Indian Culture' },
   { name: 'BSW', slug: 'bsw', category: 'social', tagline: 'Board of Student Welfare' },
+  { name: 'Central Library', slug: 'central-library', category: 'academic', tagline: 'IIT Delhi Central Library' },
+  { name: 'NRCVEE', slug: 'nrcvee', category: 'wellness', tagline: 'National Resource Centre for Value Education in Engineering' },
+  { name: 'IHFC', slug: 'ihfc', category: 'engineering', tagline: 'IITD Host for Futuristic Collaborative Research' },
+  { name: 'Civil Engineering', slug: 'civil-dept', category: 'academic', tagline: 'Department of Civil Engineering, IIT Delhi' },
 ];
 
 // ── Events extracted from the chat. Dates are real. ──
@@ -490,6 +496,102 @@ const events: Array<{
     registration_link: 'https://davincitrading.com/career-match/',
     club_slug: 'efc',
     raw_message: 'Da Vinci Speed Dating Career Edition, register at davincitrading.com',
+  },
+  // ── IIT Delhi circular announcements ──
+  {
+    title: 'Inaugural & Book Exhibition on Dr. B.R. Ambedkar',
+    description:
+      'On Dr. Ambedkar\'s birth anniversary: books on Dr. B.R. Ambedkar on display on the first floor of the Central Library, 9:30 AM–5:15 PM, April 10–16, 2026. ' +
+      'Inauguration by Prof. Arvind K. Nema (Deputy Director, Operations), with Prof. Manojkumar Ramteke (Liaison Officer, SC/ST Cell) and Prof. B.J. Alappat (Chairperson, ACL) on April 10 at 10:30 AM. Contact: cdd@library.iitd.ac.in.',
+    date: '2026-04-10',
+    time: '09:30:00',
+    end_time: '17:15:00',
+    venue: 'Central Library, First Floor',
+    venue_normalized: 'Central Library (First Floor)',
+    categories: ['cultural', 'academic', 'wellness'],
+    highlights: ['Runs Apr 10–16', 'Inauguration Apr 10, 10:30 AM'],
+    links: [{ url: 'https://library.iitd.ac.in/pdf/ExhibBRAmbedkar202604.pdf', label: 'info' }],
+    event_type: 'other',
+    registration_link: null,
+    club_slug: 'central-library',
+    raw_message: 'Book Exhibition on Dr. B.R. Ambedkar, Central Library, Apr 10–16, 2026',
+  },
+  {
+    title: 'Insights from Ramana Maharshi for Mastering Inner Peace',
+    description:
+      'NRCVEE talk. Speaker: Dr. Venkat S. Ramanan, President of Sri Ramanasramam and great grandnephew of Sri Ramana Maharshi. ' +
+      'He will discuss teachings of Sri Ramana Maharshi on retaining inner peace amid changing circumstances—work, relationships, loss, and success.',
+    date: '2026-04-10',
+    time: '17:00:00',
+    end_time: '18:00:00',
+    venue: 'LH 111',
+    venue_normalized: 'Lecture Hall Complex LH111',
+    categories: ['talk', 'wellness'],
+    highlights: ['Dr. Venkat S. Ramanan', 'NRCVEE'],
+    links: [],
+    event_type: 'talk',
+    registration_link: null,
+    club_slug: 'nrcvee',
+    raw_message: 'Ramana Maharshi talk, Fri Apr 10 2026, 5–6 PM, LH111',
+  },
+  {
+    title: 'IHFC 61st CoboTalks — Robotically Steerable Guidewires',
+    description:
+      'IHFC flagship monthly seminar. Speaker: Dr. Jaydev Desai, Professor and Cardiovascular Biomedical Engineering Distinguished Chair, Georgia Tech; Director, Georgia Center for Medical Robotics. ' +
+      'Topic: robotically steerable guidewires toward autonomous endovascular interventions; neurovascular and CTO challenges. Session for students, educators, researchers, and entrepreneurs.',
+    date: '2026-04-08',
+    time: '18:00:00',
+    end_time: '19:00:00',
+    venue: 'Online',
+    venue_normalized: 'Online (see join link)',
+    categories: ['engineering', 'talk', 'tech'],
+    highlights: ['Dr. Jaydev Desai, Georgia Tech', 'Surgical robotics'],
+    links: [
+      { url: 'https://ihfc.accubate.app/ext/survey/16478/apply', label: 'register' },
+      { url: 'https://tinyurl.com/b8yjwvpd', label: 'other' },
+    ],
+    event_type: 'talk',
+    registration_link: 'https://ihfc.accubate.app/ext/survey/16478/apply',
+    club_slug: 'ihfc',
+    raw_message: 'IHFC 61st CoboTalks, Wed Apr 8 2026, 6–7 PM IST',
+  },
+  {
+    title: 'ME Guest Talk — Dr. Debjit Kundu (GE Aerospace)',
+    description:
+      'Title: Aerosols in asymmetric airways: in health and in disease. ' +
+      'Dr. Debjit Kundu (Lead Engineer, GE Aerospace) on deposition of inhaled particles, reduced-order airway models, and implications for drug delivery and infection risk. ' +
+      'Ph.D. IIT Madras (PMRF). Hosted by Mechanical Engineering.',
+    date: '2026-04-22',
+    time: '16:00:00',
+    end_time: null,
+    venue: 'ME Seminar Room (II-422)',
+    venue_normalized: 'ME Seminar Room II-422',
+    categories: ['academic', 'engineering', 'talk'],
+    highlights: ['GE Aerospace', 'Aerosols & airways'],
+    links: [],
+    event_type: 'talk',
+    registration_link: null,
+    club_slug: 'mes',
+    raw_message: 'ME guest talk Debjit Kundu, Apr 22 2026, 4 PM, II-422',
+  },
+  {
+    title: 'IKS Conference & Hackathon — Unriddling Inference',
+    description:
+      'Interdisciplinary conference: "Unriddling Inference: From Pramāṇa Theory to Modern Logic and AI". ' +
+      'Explores classical Indian pramāṇa theory as a framework for justification and valid inference relevant to AI and formal logic. Offline at IIT Delhi. ' +
+      'Organized with Civil Engineering; contact Dr. Jyotiranjan Beuria for queries.',
+    date: '2026-04-12',
+    time: '09:00:00',
+    end_time: '18:00:00',
+    venue: 'LH 418',
+    venue_normalized: 'Lecture Hall 418',
+    categories: ['academic', 'talk', 'tech'],
+    highlights: ['IKS × AI & logic', 'Full day Apr 12'],
+    links: [{ url: 'https://events.issdelhi.org/unriddling-inference-2026/', label: 'register' }],
+    event_type: 'seminar',
+    registration_link: 'https://events.issdelhi.org/unriddling-inference-2026/',
+    club_slug: 'civil-dept',
+    raw_message: 'IKS Conference Unriddling Inference, Apr 12 2026, LH418',
   },
 ];
 
