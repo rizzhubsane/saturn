@@ -3,9 +3,9 @@ const MAX_RECENT_TIPS = 4;
 
 const tipCatalog = {
   digest: [
-    'Tip: Use `/digest` anytime to change your daily categories in seconds.',
-    'Tip: If your interests changed this week, rerun `/digest` to refresh your feed.',
-    'Tip: Daily digest can stay focused, like only tech/startup/career updates.',
+    'Tip: Use `/digest` to set category filters — then ask Saturn anytime for today\'s events.',
+    'Tip: `/digest` saves preferences for smarter answers when you message; Saturn won\'t DM you first.',
+    'Tip: Combine `/digest` with natural questions like "what\'s on today in tech?"',
   ],
   search: [
     'Tip: Try `/search hackathon` to jump straight to specific events.',
@@ -20,12 +20,12 @@ const tipCatalog = {
   saved: [
     'Tip: Use `/save <event_id>` to bookmark events you might join later.',
     'Tip: Open `/saved` before the weekend to shortlist what to attend.',
-    'Tip: Saved events + reminders are the fastest way to avoid missing deadlines.',
+    'Tip: Tap *Save & calendar* on a card to get add-to-calendar links — your phone reminds you.',
   ],
   reminders: [
-    'Tip: Use `/remind <event_id>` so Saturn pings you before kickoff.',
-    'Tip: RSVP reminders work best when you set them right after saving an event.',
-    'Tip: Reminder nudges are useful for high-signal talks and competitions.',
+    'Tip: `/remind` saves the event and sends calendar links — not WhatsApp pings from Saturn.',
+    'Tip: After you pick iOS or Android, add the event so your calendar app notifies you.',
+    'Tip: Best flow: find an event → Save & calendar → open the link on your phone.',
   ],
   posting: [
     'Tip: While posting, include clear date/time/venue to improve event visibility.',

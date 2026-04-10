@@ -75,7 +75,7 @@ export async function handleDigestPreferenceReply(user: User, message: WhatsAppM
   if (todayEvents.length === 0) {
     await sendText(
       user.phone,
-      `${digestHeader}\n\nNo matching events for today yet. I'll keep your preferences and send your next digest automatically.`
+      `${digestHeader}\n\nNo matching events for today yet. Your preferences are saved — ask me again later or try /today.`
     );
     return;
   }

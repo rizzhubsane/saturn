@@ -118,7 +118,7 @@ export function formatEventList(events: Event[], title: string): string {
     lines.push(`...and ${events.length - 10} more. Ask me to search specifically.\n`);
   }
 
-  lines.push('_Reply with the number (e.g. 1) for details + RSVP_');
+  lines.push('_Reply with the number (e.g. 1) for details — Save & calendar adds links to your phone._');
 
   return lines.join('\n');
 }
@@ -222,7 +222,7 @@ export function formatClubProfile(club: ClubWithStats): string {
   if (club.total_events > 0) {
     const avgViews = Math.round(club.total_views / club.total_events);
     lines.push(`Reach: ${club.total_views} views (~${avgViews}/event)`);
-    lines.push(`Intent: ${club.total_saves} saves | ${club.total_reminders} RSVPs`);
+    lines.push(`Intent: ${club.total_saves} saves | ${club.total_reminders} save+calendar taps`);
   } else {
     lines.push('No events posted yet.');
   }
@@ -327,7 +327,7 @@ export function formatDigest(events: Event[], digestType: 'morning' | 'evening')
     }
   }
 
-  lines.push(`${events.length} event${events.length !== 1 ? 's' : ''} today. DM me for details + RSVP`);
+  lines.push(`${events.length} event${events.length !== 1 ? 's' : ''} today. DM me for details or Save & calendar.`);
 
   return lines.join('\n');
 }
@@ -387,13 +387,13 @@ function formatStudentHelp(): string {
     '/today /tomorrow /week /weekend\n',
     '*Your Stuff*',
     '/saved -- your bookmarked events',
-    '/mysubs -- your notification preferences',
-    '/digest -- set your daily digest preferences',
+    '/mysubs -- category preferences for smarter answers',
+    '/digest -- filters for when you ask for today’s picks',
     '/feedback -- share how Saturn is working for you\n',
     '*Discover*',
     '/clubs -- browse all campus clubs',
     '/club <name> -- see a club\'s profile\n',
-    '_Tip: After I show events, reply with the number (e.g. 1) to see details and RSVP._',
+    '_Tip: After I show events, reply with the number (e.g. 1) for details — use Save & calendar for add-to-calendar links._',
   ].join('\n');
 }
 

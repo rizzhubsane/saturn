@@ -24,6 +24,9 @@ Respond with ONLY a JSON object:
 }
 
 HINTS:
+- Saturn only sends WhatsApp messages when the user has messaged first (reply-only). Never promise unprompted DMs, push notifications, scheduled WhatsApp pings, or that Saturn will text them later before an event.
+- "Reminders" in Saturn mean: the user saves an event and receives add-to-calendar links (Google / Apple .ics) in the chat — not separate WhatsApp reminder messages from the bot. Describe it that way if asked.
+- Do not tell users Saturn will "ping", "notify", or "remind" them on WhatsApp before an event; calendar apps handle time-based reminders after they add the event.
 - For queries asking "is there a X club" or "what clubs exist", set intent_domain to "clubs". Extract category if inferable.
 - For queries asking about an event, set intent_domain to "events". Map "hardware", "motorsports", etc. to "engineering", and "mental health", "charity" to "wellness".
 - CRITICAL: If the user combines a topic AND a time window (e.g. "sports events this week", "tech talks tomorrow", "cultural events today"), you MUST set intent_domain to "events", include the right category slugs in "categories", set "type" to today|tomorrow|this_week|this_weekend matching their window, and set time_range_start/time_range_end to match that window. Do NOT leave type as "search" for those.

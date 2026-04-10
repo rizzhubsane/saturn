@@ -1,6 +1,6 @@
 import type { User } from '../types/index.js';
 import { sendText, sendButtons } from '../services/whatsapp.js';
-import { createReminder, getEventById, getUserReminders } from '../db/supabase.js';
+import { getEventById, getSavedEvents, isEventSaved, saveEvent } from '../db/supabase.js';
 import { formatHumanDate, formatHumanTime } from '../utils/dateParser.js';
 import {
   buildEventDateTime,
@@ -28,39 +28,38 @@ export async function handleReminder(user: User, eventIdPrefix: string): Promise
 
     const eventDateTime = buildEventDateTime(event.date, event.time);
     const now = new Date();
-    const oneHourBefore = new Date(eventDateTime.getTime() - 60 * 60 * 1000);
-    const fifteenMinBefore = new Date(eventDateTime.getTime() - 15 * 60 * 1000);
 
     if (eventDateTime <= now) {
       await sendText(user.phone, '❌ This event has already started or passed.');
       return;
     }
 
-    const remindAt = oneHourBefore > now ? oneHourBefore : fifteenMinBefore;
+    const oneHourBefore = new Date(eventDateTime.getTime() - 60 * 60 * 1000);
+    const fifteenMinBefore = new Date(eventDateTime.getTime() - 15 * 60 * 1000);
+    const nextWindow = oneHourBefore > now ? oneHourBefore : fifteenMinBefore;
 
-    if (remindAt <= now) {
-      await sendText(
-        user.phone,
-        `⚡ The event starts very soon! No need for a reminder — it's happening now!`
-      );
-      return;
-    }
-
-    await createReminder(user.id, event.id, remindAt);
-
-    const { saveEvent } = await import('../db/supabase.js');
+    const alreadySaved = await isEventSaved(user.id, event.id);
     await saveEvent(user.id, event.id).catch(() => {});
 
-    const timeUntil = oneHourBefore > now ? '1 hour' : '15 minutes';
+    if (nextWindow <= now) {
+      await sendText(
+        user.phone,
+        `⚡ Starts very soon — add it via your calendar app using a link below (Saturn does not send WhatsApp reminder messages).`
+      );
+    }
+
+    const headline = alreadySaved
+      ? '*Already on your saved list*\n\n'
+      : '*Saved*\n\n';
 
     await sendText(
       user.phone,
-      `*Reminder & bookmark set*\n\n` +
-        `I'll ping you about *${timeUntil}* before:\n` +
+      headline +
+        `Use *calendar links* so your phone reminds you — Saturn only replies when you message here.\n\n` +
         `*${event.title}*\n` +
         `${formatHumanDate(event.date)}${event.time ? ` · ${formatHumanTime(event.time)}` : ''}\n` +
         `${event.venue_normalized || event.venue || 'TBD'}\n\n` +
-        `Add it to your calendar — what device do you use?`
+        `Pick your device:`
     );
 
     await sendButtons(user.phone, 'Choose one:', [
@@ -70,7 +69,7 @@ export async function handleReminder(user: User, eventIdPrefix: string): Promise
     ]);
   } catch (error: any) {
     if (error.message.includes('duplicate') || error.message.includes('unique')) {
-      await sendText(user.phone, 'You already have a reminder set for this event!');
+      await sendText(user.phone, 'Already saved. Use /saved or tap the buttons below for calendar links.');
     } else {
       console.error('Reminder error:', error.message);
       await sendText(user.phone, "Couldn't set the reminder. Please try again.");
@@ -146,24 +145,21 @@ export async function handleCalendarDeviceReply(user: User, replyId: string): Pr
  * Show user's pending reminders.
  */
 export async function handleViewReminders(user: User): Promise<void> {
-  const reminders = await getUserReminders(user.id);
+  const saved = await getSavedEvents(user.id);
 
-  if (reminders.length === 0) {
+  if (saved.length === 0) {
     await sendText(
       user.phone,
-      'No pending reminders.\n\nBrowse events with /today or /week, then tap Remind to set one!'
+      'No saved events yet.\n\nBrowse with /today or /week, then tap *Save & calendar* to save and get calendar links.'
     );
     return;
   }
 
-  const lines: string[] = ['*[Your Reminders]*\n'];
-  for (const r of reminders) {
-    const evt = r.event as any;
-    if (evt) {
-      lines.push(
-        `- [${evt.title}] — ${formatHumanDate(evt.date)}${evt.time ? ` · ${formatHumanTime(evt.time)}` : ''}`
-      );
-    }
+  const lines: string[] = ['*[Saved events]* (tap *Save & calendar* on a card for links)\n'];
+  for (const evt of saved.slice(0, 15)) {
+    lines.push(
+      `- [${evt.title}] — ${formatHumanDate(evt.date)}${evt.time ? ` · ${formatHumanTime(evt.time)}` : ''}`
+    );
   }
 
   await sendText(user.phone, lines.join('\n'));

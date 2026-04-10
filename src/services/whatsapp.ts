@@ -81,14 +81,12 @@ export async function sendButtons(
   to: string,
   body: string,
   buttons: WhatsAppButton[],
-  header?: string,
-  footer?: string
+  header?: string
 ): Promise<void> {
   if (!isOutboundAllowed(to)) {
     return;
   }
   const messageWithTip = buildMessageWithTip(to, body);
-  const tipText = messageWithTip.split('\n\n').pop() || '';
   const payload: any = {
     messaging_product: 'whatsapp',
     to,
@@ -105,8 +103,6 @@ export async function sendButtons(
   if (header) {
     payload.interactive.header = { type: 'text', text: header.substring(0, 60) };
   }
-  const footerText = footer || tipText;
-  if (footerText) payload.interactive.footer = { text: footerText.substring(0, 60) };
 
   await api.post('/messages', payload);
 }
@@ -119,14 +115,12 @@ export async function sendList(
   body: string,
   buttonText: string,
   sections: WhatsAppListSection[],
-  header?: string,
-  footer?: string
+  header?: string
 ): Promise<void> {
   if (!isOutboundAllowed(to)) {
     return;
   }
   const messageWithTip = buildMessageWithTip(to, body);
-  const tipText = messageWithTip.split('\n\n').pop() || '';
   const payload: any = {
     messaging_product: 'whatsapp',
     to,
@@ -151,8 +145,6 @@ export async function sendList(
   if (header) {
     payload.interactive.header = { type: 'text', text: header.substring(0, 60) };
   }
-  const footerText = footer || tipText;
-  if (footerText) payload.interactive.footer = { text: footerText.substring(0, 60) };
 
   await api.post('/messages', payload);
 }

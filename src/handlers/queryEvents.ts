@@ -118,8 +118,8 @@ export async function handleQueryEvents(
 
       await sendText(user.phone, noResultMsg);
       await new Promise(res => setTimeout(res, 500));
-      await sendButtons(user.phone, 'Want me to notify you when something comes up?', [
-        { type: 'reply', reply: { id: 'subscribe_prompt', title: 'Yes, alert me' } },
+      await sendButtons(user.phone, 'Refine what you\'re looking for?', [
+        { type: 'reply', reply: { id: 'subscribe_prompt', title: 'Subscribe prefs' } },
         { type: 'reply', reply: { id: 'action_this_week', title: 'Try This Week' } },
         { type: 'reply', reply: { id: 'cancel_prompt', title: 'No thanks' } },
       ]);
@@ -134,7 +134,7 @@ export async function handleQueryEvents(
       }
 
       await sendButtons(user.phone, 'What would you like to do?', [
-        { type: 'reply', reply: { id: `remind_${events[0].id}`, title: 'RSVP / Remind' } },
+        { type: 'reply', reply: { id: `remind_${events[0].id}`, title: 'Save & calendar' } },
         { type: 'reply', reply: { id: `save_${events[0].id}`, title: 'Save' } },
         { type: 'reply', reply: { id: `pass_${events[0].id}`, title: 'Not Interested' } },
       ]);
@@ -176,7 +176,7 @@ export async function handleEventDetail(user: User, eventId: string): Promise<vo
     }
 
     await sendButtons(user.phone, 'What would you like to do?', [
-      { type: 'reply', reply: { id: `remind_${event.id}`, title: 'RSVP / Remind' } },
+      { type: 'reply', reply: { id: `remind_${event.id}`, title: 'Save & calendar' } },
       { type: 'reply', reply: { id: `save_${event.id}`, title: 'Save' } },
       { type: 'reply', reply: { id: `pass_${event.id}`, title: 'Not Interested' } },
     ]);

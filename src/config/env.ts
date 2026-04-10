@@ -37,9 +37,9 @@ export const TIMEZONE = optional('TIMEZONE', 'Asia/Kolkata');
 export const GOD_PHONE = required('GOD_PHONE');
 
 /**
- * When false (default), WhatsApp sends only go to the user who triggered the current webhook
- * (inbound message). Scheduled digests, reminders, subscriber pings, broadcast recipients, etc. are skipped.
- * Set to `true` to restore mass outbound (digests, reminders, /broadcast to others, etc.).
+ * When false (default), WhatsApp sends only go to the user who triggered the current webhook.
+ * God-only: set `true` to allow `/broadcast` to all users and the welcome DM from `/promote`.
+ * (Scheduled digests / reminder pings / subscriber pushes are not used — Saturn only replies in DMs.)
  */
 export const ALLOW_PROACTIVE_OUTBOUND = optional('ALLOW_PROACTIVE_OUTBOUND', 'false') === 'true';
 

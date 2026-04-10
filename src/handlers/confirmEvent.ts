@@ -106,19 +106,16 @@ export async function handleConfirmEvent(
               ? '_Tagged for clubs audience._\n\n'
               : '_Tagged for general audience._\n\n'
           : '';
-        const broadcastNote = skipMassBroadcast
-          ? ''
-          : `It'll be in the next community broadcast.\n`;
-
         await sendText(
           user.phone,
           `*${kindLine} posted!*\n\n` +
             scopeNote +
             `*${parsed.title}*\n` +
             `${parsed.date}${parsed.time ? ` · ${parsed.time}` : ''}\n\n` +
-            broadcastNote +
             `ID: \`${event.id.substring(0, 8)}\`\n\n` +
-            (contentKind === 'event' ? `I'll send you analytics after the event.` : `Logged with kind *${kindLine}*.`)
+            (contentKind === 'event'
+              ? `Check /myevents for how your post is performing.`
+              : `Logged with kind *${kindLine}*.`)
         );
 
         await sendButtons(user.phone, 'What next?', [

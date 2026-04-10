@@ -23,7 +23,7 @@ export async function handleSubscribe(user: User, category: string): Promise<voi
     const cat = categoryMap.get(slug)!;
     await sendText(user.phone,
       `Subscribed to [${cat.label}]!\n\n` +
-      `You'll get notified when new ${cat.label.toLowerCase()} events are posted.\n\n` +
+      `I'll weight ${cat.label.toLowerCase()} when you search or ask in natural language — message me anytime to browse.\n\n` +
       `Manage: /mysubs · Unsubscribe: /unsubscribe ${slug}`
     );
   } catch (error: any) {
@@ -58,7 +58,7 @@ export async function handleMySubscriptions(user: User): Promise<void> {
     if (subs.length === 0) {
       await sendText(user.phone,
         'No active subscriptions.\n\n' +
-        'Subscribe to a category to get notified about new events:\n' +
+        'Subscribe to categories so answers favor those topics when you ask:\n' +
         '`/subscribe tech`\n' +
         '`/subscribe cultural`\n' +
         '`/subscribe sports`'

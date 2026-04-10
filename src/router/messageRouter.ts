@@ -299,12 +299,11 @@ async function handleInteractiveReply(user: User, message: WhatsAppMessage): Pro
   // Fallback notify buttons
   if (replyId === 'subscribe_prompt') {
     await sendText(user.phone, 
-      "Sure! Just tell me what you're into and I'll watch for events:\n\n" +
-      "For example:\n" +
-      "- \"Notify me about tech events\"\n" +
-      "- \"/subscribe sports\"\n" +
-      "- \"/subscribe cultural\"\n\n" +
-      "Or use /clubs to browse all campus clubs and follow ones you like!"
+      "Here’s how to tune results when *you* message me:\n\n" +
+      "- `/subscribe <category>` — weights categories for smarter answers\n" +
+      "- `/digest` — set digest filters for when you ask for “today’s picks”\n" +
+      "- Ask naturally anytime, e.g. “tech events this week”\n\n" +
+      "I don’t send unprompted WhatsApp messages — I only reply in this chat."
     );
     return;
   }

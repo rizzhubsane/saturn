@@ -1,6 +1,6 @@
 import type { User, WhatsAppMessage } from '../types/index.js';
 import { sendText } from '../services/whatsapp.js';
-import { GOD_PHONE } from '../config/env.js';
+import { GOD_PHONE, ALLOW_PROACTIVE_OUTBOUND } from '../config/env.js';
 import { createClub, updateUser, getUserByPhone, getSystemStats, expirePastEvents, supabase } from '../db/supabase.js';
 import { generateInviteCode } from '../utils/inviteCode.js';
 
@@ -105,7 +105,14 @@ async function handlePromote(user: User, text: string): Promise<void> {
     }
 
     await sendText(user.phone, `✅ ${targetUser.name || phone} is now ${role} of *${club.name}*.`);
-    await sendText(phone, `🎉 You've been promoted to ${role} of *${club.name}*! Type /help to see your commands.`);
+    if (ALLOW_PROACTIVE_OUTBOUND) {
+      await sendText(phone, `🎉 You've been promoted to ${role} of *${club.name}*! Type /help to see your commands.`);
+    } else {
+      await sendText(
+        user.phone,
+        `_Reply-only mode:_ the user was not DM'd (they will see role changes when they next message the bot). Set ALLOW_PROACTIVE_OUTBOUND=true to send them a welcome DM.`
+      );
+    }
 
   } catch (error: any) {
     await sendText(user.phone, `❌ Error: ${error.message}`);
@@ -117,6 +124,14 @@ async function handleBroadcast(user: User, text: string): Promise<void> {
 
   if (!broadcastMsg) {
     await sendText(user.phone, 'Usage: `/broadcast <message>`');
+    return;
+  }
+
+  if (!ALLOW_PROACTIVE_OUTBOUND) {
+    await sendText(
+      user.phone,
+      'Broadcast is disabled in reply-only mode. Saturn only sends WhatsApp messages in response to each user\'s message. Set ALLOW_PROACTIVE_OUTBOUND=true on the server to enable mass DM.'
+    );
     return;
   }
 
@@ -169,8 +184,8 @@ async function handleStats(user: User): Promise<void> {
       `*Engagement Funnel*\n` +
       `👀 Total Reach: ${stats.totalViews} views\n` +
       `🔖 Bookmarks (Saves): ${stats.totalSaves}\n` +
-      `🔔 Active RSVPs (Reminders): ${stats.totalReminders}\n\n` +
-      `🚀 *Conv. Rate:* ~${conversionRate}% (Views to Bookmarks/RSVPs)`
+      `🔔 Save + calendar taps: ${stats.totalReminders}\n\n` +
+      `🚀 *Conv. Rate:* ~${conversionRate}% (Views to bookmarks / calendar taps)`
     );
 
   } catch (error: any) {

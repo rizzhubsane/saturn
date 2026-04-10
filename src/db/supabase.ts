@@ -390,6 +390,16 @@ export async function getSavedEvents(userId: string): Promise<Event[]> {
   return (data || []).map((d: any) => d.event).filter(Boolean) as Event[];
 }
 
+export async function isEventSaved(userId: string, eventId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('saved_events')
+    .select('event_id')
+    .eq('user_id', userId)
+    .eq('event_id', eventId)
+    .maybeSingle();
+  return !!data;
+}
+
 // ============================================
 // SUBSCRIPTION OPERATIONS
 // ============================================

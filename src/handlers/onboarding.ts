@@ -1,174 +1,184 @@
 import type { User, WhatsAppMessage } from '../types/index.js';
-import { sendText, sendButtons } from '../services/whatsapp.js';
+import { sendText } from '../services/whatsapp.js';
 import { updateUser, setConversationState, clearConversationState } from '../db/supabase.js';
 import { searchByCommand } from '../services/eventSearch.js';
 import { formatEventList } from '../utils/formatter.js';
-import categoriesConfig from '../config/categories.json' with { type: "json" };
+import categoriesConfig from '../config/categories.json' with { type: 'json' };
+import { completeJSON } from '../services/llm.js';
 
-const BATCHES = [
-  [
-    { slug: 'tech', label: 'Tech & Coding' },
-    { slug: 'cultural', label: 'Cultural' },
-    { slug: 'sports', label: 'Sports' },
-  ],
-  [
-    { slug: 'career', label: 'Career' },
-    { slug: 'startup', label: 'Startups' },
-    { slug: 'academic', label: 'Academic' },
-  ],
-  [
-    { slug: 'social', label: 'Social & Chill' },
-    { slug: 'workshop', label: 'Workshops' },
-    { slug: 'competition', label: 'Competitions' },
-  ],
-];
+const VALID_SLUGS = new Set(categoriesConfig.categories.map(c => c.slug));
+
+const ONBOARDING_PARSE_PROMPT = `You map a WhatsApp user's onboarding message to campus event category slugs for IIT Delhi.
+
+Valid categories (slug is what you output in "categories"):
+{{CATEGORIES_JSON}}
+
+Respond with ONLY a JSON object:
+{
+  "wants_all": boolean,
+  "categories": ["slug", ...]
+}
+
+Rules:
+- "wants_all" true only if they clearly want every category (e.g. "all", "everything", "all of them", "show me everything").
+- If they skip, want nothing, or are unsure (e.g. "skip", "none", "not sure", "later"), set wants_all false and categories [].
+- Map natural language to slugs: e.g. hackathons/coding/CS → tech; football/cricket → sports; music/drama → cultural; jobs/placements → career; startups → startup; research papers → academic; mental health → wellness; etc.
+- Only include slugs that exist in the valid list. If unsure about a phrase, omit it.
+- categories must be unique. Empty array is valid.`;
+
+interface ParsedOnboarding {
+  wants_all: boolean;
+  categories: string[];
+}
+
+function formatCategoryCatalog(): string {
+  return categoriesConfig.categories
+    .map(c => `• *${c.slug}* — ${c.emoji || ''} ${c.label}`.trim())
+    .join('\n');
+}
 
 /**
- * Handle first-time user onboarding -- short, fast, button-driven.
+ * Parse natural-language interests into validated slugs.
+ */
+async function parseInterestsFromText(userText: string): Promise<{ slugs: string[]; wantsAll: boolean }> {
+  const trimmed = userText.trim();
+  if (!trimmed) {
+    return { slugs: [], wantsAll: false };
+  }
+
+  const lower = trimmed.toLowerCase();
+  if (
+    lower === 'all' ||
+    lower === 'everything' ||
+    lower === 'all categories' ||
+    lower === 'all of them' ||
+    lower === 'show me everything'
+  ) {
+    return { slugs: [...VALID_SLUGS], wantsAll: true };
+  }
+
+  const systemPrompt = ONBOARDING_PARSE_PROMPT.replace(
+    '{{CATEGORIES_JSON}}',
+    JSON.stringify(
+      categoriesConfig.categories.map(c => ({ slug: c.slug, label: c.label, emoji: c.emoji })),
+      null,
+      0
+    )
+  );
+
+  const parsed = await completeJSON<ParsedOnboarding>(systemPrompt, `User message:\n${trimmed}`, {
+    temperature: 0.15,
+  });
+
+  const wantsAll = !!parsed.wants_all;
+  if (wantsAll) {
+    return { slugs: [...VALID_SLUGS], wantsAll: true };
+  }
+
+  const raw = Array.isArray(parsed.categories) ? parsed.categories : [];
+  const slugs = [...new Set(raw.map(s => String(s).toLowerCase().trim()).filter(s => VALID_SLUGS.has(s)))];
+  return { slugs, wantsAll: false };
+}
+
+/**
+ * First-time onboarding: show all categories, ask for a natural-language reply.
  */
 export async function handleOnboarding(user: User, _message: WhatsAppMessage): Promise<void> {
-  await setConversationState(user.id, 'onboarding_interests', {
-    selectedInterests: [],
-    batch: 0,
-  });
+  await setConversationState(user.id, 'onboarding_interests', {});
 
   const name = user.name ? ` ${user.name.split(' ')[0]}` : '';
 
-  await sendText(user.phone,
-    `Hey${name}! I'm Saturn -- I track every club event at IIT Delhi.\n\n` +
-    `Ask me anything like "what's tonight?" and I'll find it.\n\n` +
-    `Quick setup -- what are you into?`
-  );
+  const intro =
+    `Hey${name}! I'm Saturn — I track club events at IIT Delhi.\n\n` +
+    `Ask me anything like "what's tonight?" anytime.\n\n` +
+    `*Quick setup — what do you care about?* Reply in your own words. For example:\n` +
+    `_tech and sports_, _workshops and cultural stuff_, _everything_, or _skip_.\n\n` +
+    `*Categories you can mention:*\n${formatCategoryCatalog()}`;
 
-  await new Promise(r => setTimeout(r, 400));
-  await sendInterestBatch(user, 0);
+  await sendText(user.phone, intro);
 }
 
 /**
- * Send a batch of 3 interest buttons.
- */
-async function sendInterestBatch(user: User, batchIndex: number): Promise<void> {
-  if (batchIndex >= BATCHES.length) {
-    await finishOnboarding(user);
-    return;
-  }
-
-  const batch = BATCHES[batchIndex];
-  const buttons = batch.map(cat => ({
-    type: 'reply' as const,
-    reply: { id: `interest_${cat.slug}`, title: cat.label },
-  }));
-
-  const total = BATCHES.length;
-  const step = batchIndex + 1;
-  const prompt = `Interest setup (${step}/${total})\nTap what matches you:`;
-
-  await sendButtons(user.phone, prompt, buttons);
-}
-
-/**
- * Handle interest selection during onboarding.
+ * NL reply while in onboarding — parse interests and finish.
  */
 export async function handleOnboardingReply(user: User, message: WhatsAppMessage): Promise<void> {
   const replyId = message.interactive?.button_reply?.id || message.interactive?.list_reply?.id || '';
-  const text = message.text?.body?.trim().toLowerCase() || '';
 
-  // "done", "skip", or non-interest message = finish
-  if (replyId === 'onboarding_done' || text === 'skip' || text === 'done') {
-    await finishOnboarding(user);
-    return;
-  }
-
-  // "next batch" button
-  if (replyId === 'onboarding_next') {
-    const { getConversationState } = await import('../db/supabase.js');
-    const state = await getConversationState(user.id);
-    const currentBatch = (state?.data?.batch ?? 0) + 1;
-    await setConversationState(user.id, 'onboarding_interests', {
-      selectedInterests: state?.data?.selectedInterests || user.interests || [],
-      batch: currentBatch,
-    });
-    if (currentBatch >= BATCHES.length) {
-      await finishOnboarding(user);
-    } else {
-      await sendInterestBatch(user, currentBatch);
-    }
-    return;
-  }
-
-  if (!replyId.startsWith('interest_')) {
-    // User typed something random -- finish onboarding, route their message
-    await finishOnboarding(user);
-    return;
-  }
-
-  // Add the selected interest
-  const category = replyId.replace('interest_', '');
-  const currentInterests = user.interests || [];
-
-  if (!currentInterests.includes(category)) {
-    currentInterests.push(category);
-    await updateUser(user.id, { interests: currentInterests } as any);
-    user.interests = currentInterests;
-  }
-
-  const cat = categoriesConfig.categories.find(c => c.slug === category);
-  const catLabel = cat?.label || category;
-
-  // Find which batch this was in, then show next batch or finish
-  const { getConversationState } = await import('../db/supabase.js');
-  const state = await getConversationState(user.id);
-  const currentBatch = state?.data?.batch ?? 0;
-  const nextBatch = currentBatch + 1;
-
-  await setConversationState(user.id, 'onboarding_interests', {
-    selectedInterests: currentInterests,
-    batch: nextBatch,
-  });
-
-  if (nextBatch >= BATCHES.length) {
-    // Show one final prompt
-    const total = BATCHES.length;
-    await sendButtons(
+  if (replyId && (replyId.startsWith('interest_') || replyId === 'onboarding_done')) {
+    await sendText(
       user.phone,
-      `Interest setup (${total}/${total})\nAdded ${catLabel}! You're all set.`,
-      [
-        { type: 'reply', reply: { id: 'onboarding_done', title: 'Show me events!' } },
-        { type: 'reply', reply: { id: 'onboarding_next', title: 'Pick more' } },
-      ]
+      'Please *type* your interests in a message (see the category list above). For example: _tech, sports, cultural_ or _everything_.'
     );
-    // Re-send the full batch list for "pick more"
-  } else {
-    await sendText(user.phone, `Added ${catLabel}!`);
-    await new Promise(r => setTimeout(r, 300));
-    await sendInterestBatch(user, nextBatch);
+    return;
+  }
+
+  const text = message.text?.body?.trim() || '';
+  const lower = text.toLowerCase();
+
+  if (!text) {
+    await sendText(
+      user.phone,
+      'Send a text reply listing what you\'re into — or say *skip* to skip setup.'
+    );
+    return;
+  }
+
+  if (lower === 'skip' || lower === 'none' || lower === 'no thanks' || lower === 'later') {
+    await finishOnboarding(user, []);
+    return;
+  }
+
+  try {
+    const { slugs, wantsAll } = await parseInterestsFromText(text);
+
+    if (wantsAll) {
+      await finishOnboarding(user, [...VALID_SLUGS]);
+      return;
+    }
+
+    if (slugs.length > 0) {
+      await finishOnboarding(user, slugs);
+      return;
+    }
+
+    await sendText(
+      user.phone,
+      `I couldn't map that to categories yet. Try a few words like *tech*, *sports*, *cultural*, or say *all* for every category, or *skip*.`
+    );
+  } catch (e: any) {
+    console.error('Onboarding parse failed:', e?.message);
+    await sendText(
+      user.phone,
+      `Something went wrong parsing that. Try again with simple words (e.g. *tech and career*) or *skip*.`
+    );
   }
 }
 
-/**
- * Finish onboarding and immediately show relevant events.
- */
-async function finishOnboarding(user: User): Promise<void> {
-  await updateUser(user.id, { onboarded: true } as any);
+async function finishOnboarding(user: User, interests: string[]): Promise<void> {
+  const unique = [...new Set(interests.filter(s => VALID_SLUGS.has(s)))];
+
+  await updateUser(user.id, { onboarded: true, interests: unique } as any);
+  user.interests = unique;
   await clearConversationState(user.id);
 
-  const interests = user.interests || [];
-  let greeting = 'You\'re all set!';
+  let greeting = "You're all set!";
 
-  if (interests.length > 0) {
-    const labels = interests
+  if (unique.length > 0) {
+    const labels = unique
       .map(slug => categoriesConfig.categories.find(c => c.slug === slug)?.label || slug)
-      .slice(0, 4)
+      .slice(0, 8)
       .join(', ');
     greeting += ` Watching: ${labels}.`;
+  } else {
+    greeting += " I'll show you everything when you search — you can narrow later with /digest.";
   }
 
   await sendText(user.phone, greeting);
   await new Promise(r => setTimeout(r, 400));
 
-  // Show upcoming events matching interests
-  const events = await searchByCommand('this_week',
-    interests.length > 0 ? { categories: interests } : {}
+  const events = await searchByCommand(
+    'this_week',
+    unique.length > 0 ? { categories: unique } : {}
   );
 
   if (events.length > 0) {
@@ -179,7 +189,8 @@ async function finishOnboarding(user: User): Promise<void> {
       events: events.slice(0, 5).map(e => e.id),
     }, 60);
   } else {
-    await sendButtons(user.phone, 'No matching events this week yet. I\'ll notify you when something comes up!', [
+    const { sendButtons } = await import('../services/whatsapp.js');
+    await sendButtons(user.phone, 'No matching events this week yet. Try broader filters or check back — message me anytime.', [
       { type: 'reply', reply: { id: 'action_clubs', title: 'Browse Clubs' } },
       { type: 'reply', reply: { id: 'action_this_week', title: 'All This Week' } },
     ]);
